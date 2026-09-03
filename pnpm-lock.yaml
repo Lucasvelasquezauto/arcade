@@ -39,7 +39,11 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
-  packages/games/test-pattern: {}
+  packages/games/test-pattern:
+    dependencies:
+      '@arcade/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
 
   packages/shell: {}
 
