@@ -27,7 +27,17 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(vite@8.2.2)
 
+  apps/arcade: {}
+
+  packages/catalog: {}
+
   packages/contracts: {}
+
+  packages/core: {}
+
+  packages/games/test-pattern: {}
+
+  packages/shell: {}
 
 packages:
 
