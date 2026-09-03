@@ -8,3 +8,6 @@ dist/
 coverage/
 .vercel/
 .pnpm-store/
+
+# Lanzador local del CLI (de Lucas, no del proyecto)
+claude-local.bat
