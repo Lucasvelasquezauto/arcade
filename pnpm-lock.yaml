@@ -33,7 +33,11 @@ importers:
 
   packages/contracts: {}
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      '@arcade/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/games/test-pattern: {}
 

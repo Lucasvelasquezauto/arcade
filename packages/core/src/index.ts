@@ -1,6 +1,10 @@
 /**
- * @arcade/core — andamiaje vacío (M1.1). Sin lógica todavía: bucle a paso
- * fijo, ciclo de vida, render, audio, hápticos y récords llegan en M1.4,
- * M1.5 y M1.9 (docs/execution-plan.md).
+ * @arcade/core — la plataforma (Art. 3.5).
+ *
+ * M1.4 (este cambio): bucle a paso fijo, ciclo de vida y pausa, entrada
+ * táctil (docs/specs/core.md §2–§4). Render Canvas 2D, audio, hápticos y
+ * récords llegan en agentes posteriores (docs/execution-plan.md).
  */
-export {};
+export * from './loop.js';
+export * from './lifecycle.js';
+export * from './input/index.js';
