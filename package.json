@@ -1,0 +1,24 @@
+{
+  "name": "arcade",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "depcruise": "depcruise packages apps --config .dependency-cruiser.cjs",
+    "test": "vitest run --passWithNoTests",
+    "verify:rules": "node tools/verify-rules.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm depcruise && pnpm test && pnpm verify:rules"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "dependency-cruiser": "^18.2.0",
+    "eslint": "^10.9.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11"
+  }
+}

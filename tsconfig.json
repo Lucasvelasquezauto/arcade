@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@arcade/contracts": ["./packages/contracts/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/games/*/src/**/*.ts",
+    "packages/games/*/test/**/*.ts",
+    "apps/*/src/**/*.ts"
+  ],
+  "exclude": ["**/node_modules", "**/dist", "tools/fixtures"]
+}
