@@ -186,6 +186,16 @@ el que un agente con contexto limitado sigue operando dentro de la constitución
 - **Idioma:** documentación en español; código, identificadores y comentarios en inglés.
 - **Un juego = un paquete.** Agregar el quinto juego es crear una carpeta más y una entrada
   en `catalog`, sin tocar nada más (Art. 3.8).
+- **Todo paquete que importe `@arcade/contracts` debe declararlo** en su `package.json`
+  como `"dependencies": { "@arcade/contracts": "workspace:*" }`, y correr `pnpm install`.
+  TypeScript lo resuelve por `paths` aunque falte, pero **Vitest en tiempo de ejecución
+  no**: sin la declaración, los tests fallan al importar. Descubierto por el primer
+  consumidor real de los contratos (M1.6); los cuatro juegos tropezarían con lo mismo.
+- **Cada agente CLI simultáneo trabaja en su propio worktree de git**, no en la carpeta
+  principal: `git worktree add ..\Arcade-<rama> -b <rama> master`, y su propio
+  `pnpm install` ahí. Un solo working tree no puede estar en tres ramas a la vez; si dos
+  agentes comparten carpeta, sus commits se mezclan entre ramas. Al integrar,
+  `git worktree remove`.
 - **Los assets viven con su juego.** No hay carpeta global de sprites ni de sonidos.
 - **Las constantes van en `constants.ts`**, cada una con su marca `VERIFICADO` o `DERIVADO`
   y su referencia al documento de investigación (Art. 1.4).

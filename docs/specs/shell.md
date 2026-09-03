@@ -74,6 +74,16 @@ Reglas:
 El shell renderiza **lo que el juego declara** en su `ControlPanel`, y nada más. Sin
 botones muertos: un control que el juego no declaró no se dibuja.
 
+**El shell es quien escucha los toques.** Escucha los eventos de puntero del DOM y hace el
+*hit-testing* contra los controles que dibuja. Al núcleo le entrega señales ya
+clasificadas: el identificador del botón accionado, y el desplazamiento de la palanca
+normalizado contra su propio radio en pantalla, entre -1 y 1. El núcleo nunca toca el DOM
+(`docs/specs/core.md` §4.0).
+
+**Zona muerta:** el shell la declara y se la pasa al núcleo como parámetro. Valor inicial
+**0.15 del radio dibujado de la palanca**, marcado `SUPUESTO`: es un número a ajustar
+probándolo en el teléfono, no una constante con fundamento.
+
 Reglas transversales:
 
 1. **Feedback visual siempre, en las dos plataformas.** La palanca se inclina siguiendo el

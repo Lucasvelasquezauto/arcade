@@ -30,14 +30,32 @@ independientemente de la tasa de refresco real de la pantalla.
 
 ```
 cada frame del navegador:
-  acumulador += tiempo transcurrido desde el frame anterior
-  mientras acumulador >= TICK_MS y ticks_en_este_frame < MAX_TICKS_POR_FRAME:
+  total = acumulador + tiempo transcurrido desde el frame anterior
+  ticks = min( floor(total / TICK_MS), MAX_TICKS_POR_FRAME )
+
+  repetir ticks veces:
       estado = juego.step(estado, entrada_del_tick)
       reproducir sonidos devueltos
-      acumulador -= TICK_MS
+
+  si ticks == MAX_TICKS_POR_FRAME:
+      acumulador = 0            # el exceso SE DESCARTA, no se pospone
+  si no:
+      acumulador = total - ticks * TICK_MS
+
   alpha = acumulador / TICK_MS
   juego.draw(estado, superficie, alpha)
 ```
+
+**Dos precisiones que este pseudocódigo incorpora a propósito, y que la versión anterior
+dejaba solo en la prosa:**
+
+- **El descarte está en el algoritmo.** Al topar el máximo, el acumulador vuelve a cero.
+  Conservar el sobrante dejaría el juego en cámara lenta hasta ponerse al día, que es
+  precisamente lo que el tope existe para evitar.
+- **Los ticks se calculan con una sola división, no restando `TICK_MS` en un bucle.**
+  `TICK_MS` es 1000/60 y no es exacto en binario: restarlo cinco veces acumula error de
+  redondeo suficiente para que el quinto tick no ocurra. Verificado en la implementación
+  (M1.4): la versión con resta iterativa fallaba el criterio de aceptación 4.
 
 Reglas:
 
@@ -90,6 +108,14 @@ iOS.
 El núcleo traduce toques a `InputState` (`@arcade/contracts`). El juego nunca ve dedos,
 píxeles ni eventos de puntero.
 
+0. **Quién escucha los toques: el shell, no el núcleo.** El shell escucha los eventos de
+   puntero del DOM y hace el *hit-testing* contra los controles que él mismo dibuja —son
+   suyos (Art. 3.7), así que saber qué se tocó también lo es. El núcleo recibe señales **ya
+   clasificadas**: el identificador del botón accionado, y el desplazamiento de la palanca
+   ya normalizado contra su propio radio en pantalla, como un valor entre -1 y 1. Con eso
+   el núcleo construye el `InputState`, resuelve el flanco `pressed` y aplica la zona
+   muerta. Consecuencia buscada: la traducción de entrada queda libre de DOM y comprobable
+   sin navegador.
 1. **Muestreo continuo, instantánea por tick.** Los eventos táctiles llegan cuando el
    navegador quiere; el núcleo mantiene un estado vivo y toma una instantánea al inicio de
    cada tick.
@@ -195,7 +221,18 @@ No es una herramienta de desarrollo que se quita antes de publicar: es parte del
 9. `pnpm verify` pasa en limpio.
 10. `grep` de identificadores de juego en `packages/core/**` no encuentra ninguno.
 
-## 11. Prohibiciones
+## 11. Tipos del DOM en la configuración compartida
+
+`tsconfig.base.json` incluye `DOM` en `lib`. Es una decisión consciente: el shell necesita
+tipos del DOM en todas partes y no puede resolverlo con casts locales.
+
+**La pureza de las capas puras no la garantiza el compilador, sino la verificación
+mecánica:** ESLint prohíbe `window`, `document`, `navigator`, `fetch`, `setTimeout`,
+`Date.now` y `Math.random` en `contracts` y en la lógica de los juegos, y
+dependency-cruiser bloquea los imports cruzados. Esos son los que muerden, y siguen
+mordiendo con `DOM` presente — la prueba negativa lo verifica en cada `pnpm verify`.
+
+## 12. Prohibiciones
 
 - Ninguna condicional ni constante por juego.
 - Ningún import de `packages/games/**` ni de `packages/shell/**`.
