@@ -7,7 +7,7 @@
 
 ---
 
-## 0. Las cuatro reglas que gobiernan el paralelismo
+## 0. Las cinco reglas que gobiernan el paralelismo
 
 **Regla 1 — La investigación paraleliza sin límite; el código no.** El Artículo 4 prohíbe
 abrir código de varios juegos a la vez hasta que el segundo juego pruebe el contrato del
@@ -23,7 +23,15 @@ cada agente activo genera una cola de revisión que termina en ti. La composici�
 **uno de código + uno de assets + uno de investigación**. Cuando un cuarto frente esté listo
 para arrancar, espera turno en vez de sumarse.
 
-**Regla 4 — `contracts/` y `docs/` los toca únicamente el hilo orquestador.** Si cuatro
+**Regla 4 — Todo agente deja su entrega en un archivo, no en el chat.** Al terminar,
+cada agente escribe `docs/handoff/<tarea>.md` con lo que el orquestador necesita para
+continuar: qué hizo, qué decidió, sus `SUPUESTO`, sus preguntas abiertas y qué queda
+pendiente. El propietario no transcribe resultados entre ventanas: avisa que la tarea
+terminó y el orquestador lee el archivo. Un resumen que solo existe en una ventana de chat
+se pierde cuando esa ventana se cierra.
+
+**Regla 5 — `contracts/` y `docs/` los toca únicamente el hilo orquestador.**
+Excepción: `docs/handoff/` y `docs/research/`, donde cada agente escribe lo suyo. Si cuatro
 agentes pueden cambiar las interfaces compartidas, no hay contrato. Un agente que necesita un
 cambio en `contracts` **se detiene y lo pide**; no lo hace.
 
@@ -181,7 +189,19 @@ de 60 fps en los tres dispositivos, y documentación de cómo agregar el quinto 
    agentes modificando `pnpm-lock.yaml` a la vez.
 5. **Si un agente necesita cambiar `contracts`, se detiene.** No lo negocia con otro agente.
 
-## 5. Qué le encargas a cada agente
+## 5. Regla de conducta del orquestador
+
+El hilo orquestador **decide, especifica, integra y revisa**. No implementa, no instala, no
+depura: eso es siempre de otro agente.
+
+- **Ante un fallo, su primera acción es nombrar quién lo arregla, nunca cómo se arregla.**
+  Autoriza el alcance, fija el criterio de aceptación y dice cómo se verifica.
+- **No especifica soluciones que no puede verificar** en la plataforma donde se ejecutan.
+  Si el problema es del entorno de otro agente, decide quien puede probarlo.
+- La columna "dónde" de cada actividad es **vinculante**. Reasignar se propone antes de
+  ejecutar y con aprobación explícita, nunca después.
+
+## 6. Qué le encargas a cada agente
 
 Todo agente arranca con el mismo paquete de encargo, y nada más:
 
@@ -190,11 +210,12 @@ Todo agente arranca con el mismo paquete de encargo, y nada más:
 - Su carpeta, y la frase explícita de que no puede escribir fuera de ella.
 - Sus criterios de aceptación.
 - La instrucción de marcar `SUPUESTO` y seguir, en vez de decidir en silencio.
+- La ruta de su archivo de entrega: `docs/handoff/<tarea>.md` (Regla 4).
 
 Lo que **no** se le da: contexto de otros juegos, decisiones tomadas en otros hilos, ni
 "cómo lo hizo el otro agente". Esa información no lo ayuda y sí lo contamina (Art. 2.5).
 
-## 6. Riesgos de este modelo de trabajo
+## 7. Riesgos de este modelo de trabajo
 
 | Riesgo | Mitigación |
 |---|---|

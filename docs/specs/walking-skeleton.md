@@ -1,6 +1,8 @@
 # Spec — Esqueleto desplegable (walking skeleton)
 
-**Versión:** 1.0 (borrador para aprobación)
+**Versión:** 1.1
+**Cambio v1.1 (2026-09-03):** se añade `client_id` al modelo de datos, requerido por la
+idempotencia de la cola de récords especificada en `docs/specs/core.md` §8.2.
 **Fecha:** 2026-09-03
 **Estado:** pendiente de aprobación
 **Documentos superiores:** `constitution.md`, `product-spec.md`, `stack-proposal.md`, `repo-structure.md`
@@ -98,6 +100,7 @@ Tabla única `scores`:
 | Campo | Tipo | Regla |
 |---|---|---|
 | `id` | uuid | generado por el servidor |
+| `client_id` | uuid | **generado por el cliente**, con restricción de unicidad. Es lo que hace que un reintento tras una respuesta perdida no cree un récord duplicado (ver `docs/specs/core.md` §8.2). Añadido en v1.1. |
 | `game_id` | text | identificador del juego en el catálogo |
 | `name` | text | exactamente 1–5 caracteres, validado en servidor |
 | `score` | integer | ≥ 0 |
