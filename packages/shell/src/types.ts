@@ -5,7 +5,7 @@
  * commands the shell sends back. This file is the props interface referenced
  * in `docs/handoff/1.7-shell.md`; keep it in sync with that document.
  */
-import type { AnyGameModule, Axis, ControlPanel, Resolution } from '@arcade/contracts';
+import type { AnyGameModule, ControlPanel, Resolution } from '@arcade/contracts';
 
 /** Metadata the selection screen and the cabinet accent need — nothing the
  *  game's own logic, render or audio require. Deliberately a subset of
@@ -85,16 +85,21 @@ export interface CoreHandle {
   subscribeSession(listener: (view: SessionView) => void): () => void;
 
   /**
-   * Digital stick input, already resolved to -1/0/1 by the shell's touch
-   * handling (see `controls/touch.ts`) — SUPUESTO: the shell owns the
-   * continuous-drag-to-digital-axis math (including the dead zone) because
-   * it alone knows the drawn geometry of the control it renders; the core
-   * only samples this value once per tick and resolves button edges
-   * (`InputState.pressed`), per core.md §4. Rejected alternative: shipping
-   * raw pixel deltas to the core, which would leak shell layout into a
-   * package that must stay ignorant of it (Art. 3.7).
+   * Continuous stick displacement, each component normalised to [-1, 1]
+   * against the drawn radius of the control (core.md §4.0) — NOT the
+   * resolved digital axis. The shell only knows the geometry of the control
+   * it renders, so normalising against that radius is its job; applying the
+   * dead zone and converting to the digital -1/0/1 a game receives is the
+   * core's (`resolveStick`/`TouchInput`, `packages/core/src/input/`).
+   *
+   * M2.1 correction: before this, the shell resolved all the way to the
+   * digital axis itself, which left the core's own dead-zone/digital-axis
+   * code with no real caller (docs/handoff/1.11-cableado.md §4, §8). The
+   * keyboard enters through the exact same call, handing -1, 0 or 1 directly
+   * — already-digital values pass through the core's dead zone unchanged,
+   * since their magnitude is 1 (product-spec.md §2.1).
    */
-  setStick(x: Axis, y: Axis): void;
+  setStick(x: number, y: number): void;
   setButton(id: string, down: boolean): void;
 
   /** Manual pause from the cabinet (spec §6, product-spec.md §9). */
@@ -123,4 +128,4 @@ export interface AppProps {
   readonly core: CoreHandle;
 }
 
-export type { Axis, ControlPanel, Resolution };
+export type { ControlPanel, Resolution };

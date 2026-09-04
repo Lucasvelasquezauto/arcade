@@ -3,10 +3,20 @@
  * on lift, independent of any game tick (§5.2). No JSX — see
  * docs/handoff/1.7-shell.md for why this package writes `.ts` + `h()`
  * instead of `.tsx`.
+ *
+ * Two gesture sources feed the same visual/output "pressed" state: a pointer
+ * press, and the `L` key (product-spec.md §2.1) — SUPUESTO: this component
+ * assumes it IS the app's single keyboard action button unconditionally,
+ * which holds today because "ningún juego declara un segundo botón sin una
+ * decisión explícita del propietario" (product-spec.md §2.1) means a panel
+ * never renders more than one `Button`. If that ever changes, `L` needs to
+ * be routed to a specific button by `ControlPanel` instead.
  */
 import { h } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { haptics } from '@arcade/core';
 import type { PanelButton } from '@arcade/contracts';
+import { isActionButtonKey } from './keyboard.js';
 import { MIN_TOUCH_PX } from '../theme/tokens.js';
 
 /** SUPUESTO — colores de cara de botón típicos de arcade; sin research previa. */
@@ -29,20 +39,56 @@ export interface ButtonProps {
 }
 
 export function Button({ button, onDown, onUp, inert = false }: ButtonProps) {
-  const [pressed, setPressed] = useState(false);
+  const [pointerPressed, setPointerPressed] = useState(false);
+  const [keyboardPressed, setKeyboardPressed] = useState(false);
+  const wasPressedRef = useRef(false);
+  const pressed = pointerPressed || keyboardPressed;
+
+  /** Fires `onDown`/`onUp` and haptics only on the combined edge, since
+   *  pointer and keyboard are independent sources that must not double-fire
+   *  each other's edge (core.md §7.2: only on actuating the control). */
+  function setEffectivePressed(next: boolean): void {
+    if (next === wasPressedRef.current) return;
+    wasPressedRef.current = next;
+    if (next) {
+      haptics.trigger();
+      onDown();
+    } else {
+      onUp();
+    }
+  }
 
   function handleDown(event: PointerEvent): void {
     if (inert) return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-    setPressed(true);
-    onDown();
+    setPointerPressed(true);
+    setEffectivePressed(true);
   }
 
   function handleUp(): void {
     if (inert) return;
-    setPressed(false);
-    onUp();
+    setPointerPressed(false);
+    setEffectivePressed(keyboardPressed);
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (inert || event.repeat || !isActionButtonKey(event.key)) return;
+      setKeyboardPressed(true);
+      setEffectivePressed(true);
+    }
+    function onKeyUp(event: KeyboardEvent): void {
+      if (!isActionButtonKey(event.key)) return;
+      setKeyboardPressed(false);
+      if (!inert) setEffectivePressed(pointerPressed);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [inert, pointerPressed]);
 
   const touchDiameter = Math.max(MIN_TOUCH_PX, CAP_DIAMETER_PX) + TOUCH_PADDING_PX;
 

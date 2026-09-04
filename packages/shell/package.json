@@ -8,6 +8,7 @@
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
     "@arcade/contracts": "workspace:*",
+    "@arcade/core": "workspace:*",
     "@preact/signals": "^1.3.2",
     "preact": "^10.28.2"
   }

@@ -5,17 +5,17 @@
  * for (`CoreHandle`, see `packages/shell/src/types.ts`): the shell never sees
  * any of this, it only calls the handful of methods this class backs.
  */
-import type { AnyGameModule, Axis, InputState } from '@arcade/contracts';
+import type { AnyGameModule, InputState } from '@arcade/contracts';
 import type { SessionStatus, SessionView } from '@arcade/shell';
+import { STICK_DEAD_ZONE_RATIO, prefersFinePointer } from '@arcade/shell';
 import type { CatalogEntry } from '@arcade/catalog';
 import {
-  ButtonEdgeTracker,
   CanvasDrawSurface,
   GameLoop,
   LifecycleController,
   MAX_TICKS_PER_FRAME,
+  TouchInput,
   attachBrowserLifecycle,
-  haptics,
   type AudioPlayer,
   type CanvasLike,
 } from '@arcade/core';
@@ -42,19 +42,34 @@ export interface DiagnosticsSnapshot {
  * spec says who does. Positioning the node imperatively from here, once, is
  * composition (this package's job, per its CLAUDE.md), not a change to
  * either package's source.
+ *
+ * `extraScale` is M2.1's PC magnification (core.md §5.4b, product-spec.md
+ * §2.1 regla 1): `CanvasDrawSurface.resize()` already drew the game at the
+ * best INTEGER multiple that fits (the "superficie interna" the spec
+ * describes) — this composes an additional uniform CSS scale on top, on a
+ * fine pointer only, to fill whatever the integer step left unused. The
+ * browser's default (bilinear) resampling of the canvas element is exactly
+ * the "suavizado uniforme" the spec asks for; nothing here sets
+ * `image-rendering: pixelated`, unlike the crisp default. 1 is a no-op —
+ * `transform: scale(1)` changes nothing, so this is safe to always apply.
  */
-function centerCanvas(canvas: HTMLCanvasElement): void {
+function positionCanvas(canvas: HTMLCanvasElement, extraScale: number): void {
   canvas.style.position = 'absolute';
   canvas.style.top = '50%';
   canvas.style.left = '50%';
-  canvas.style.transform = 'translate(-50%, -50%)';
+  canvas.style.transform = `translate(-50%, -50%) scale(${extraScale})`;
 }
 
 export class GameSession {
-  private readonly buttons = new ButtonEdgeTracker();
-  private stickX: Axis = 0;
-  private stickY: Axis = 0;
-  private stickActuated = false;
+  /**
+   * M2.1 correction (core.md §4.0): the shell now hands over the stick's
+   * CONTINUOUS displacement instead of a pre-resolved digital axis, so this
+   * is the core's own `TouchInput` — dead-zone-to-digital resolution and
+   * button-edge tracking both live here now, not hand-rolled in this file
+   * (docs/handoff/1.11-cableado.md §4/§8 flagged `TouchInput`/`resolveStick`
+   * as dead code with no consumer; this wiring is that consumer).
+   */
+  private readonly touchInput: TouchInput;
 
   private readonly surface: CanvasDrawSurface;
   private readonly resizeObserver: ResizeObserver;
@@ -81,6 +96,8 @@ export class GameSession {
     private readonly audioPlayer: AudioPlayer,
     private readonly onChange: () => void,
   ) {
+    this.touchInput = new TouchInput({ stick: entry.panel.stick, deadZone: STICK_DEAD_ZONE_RATIO });
+
     /**
      * SUPUESTO / rough edge: `CanvasLike.getContext('2d')` is typed to return
      * `Context2DLike | null`, whose `fillStyle` is a plain `string`. The real
@@ -96,14 +113,24 @@ export class GameSession {
      * one, and it is narrow and local to this composition boundary.
      */
     this.surface = new CanvasDrawSurface(canvas as unknown as CanvasLike, entry.resolution);
-    centerCanvas(canvas);
+    positionCanvas(canvas, 1);
 
+    // core.md §5.4b / product-spec.md §2.1 regla 1 — computed once: this
+    // session's canvas either takes the PC magnification path for its whole
+    // life or it doesn't, same as `Cabinet.ts`'s own one-shot read.
+    const finePointer = prefersFinePointer();
     const resizeTarget = canvas.parentElement ?? canvas;
     const applyResize = (): void => {
       const rect = resizeTarget.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        this.surface.resize({ width: rect.width, height: rect.height }, window.devicePixelRatio || 1);
-      }
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const layout = this.surface.resize({ width: rect.width, height: rect.height }, window.devicePixelRatio || 1);
+      // Never deform (shell.md §5.2): a single uniform factor, bound by
+      // whichever axis is tighter, so any leftover letterbox stays only in
+      // the other axis instead of stretching the image off-ratio.
+      const extraScale = finePointer
+        ? Math.min(rect.width / layout.cssWidthPx, rect.height / layout.cssHeightPx)
+        : 1;
+      positionCanvas(canvas, extraScale);
     };
     applyResize();
     this.resizeObserver = new ResizeObserver(applyResize);
@@ -114,10 +141,7 @@ export class GameSession {
         this.loop?.pause();
         this.audioPlayer.stopAll();
         // spec §3 rule 4: pause discards input — nothing the finger does while hidden reaches the game.
-        this.buttons.reset();
-        this.stickX = 0;
-        this.stickY = 0;
-        this.stickActuated = false;
+        this.touchInput.reset();
         this.pauseStartedAtPerfMs = performance.now();
         this.pauseStartedAtIso = new Date().toISOString();
       },
@@ -168,7 +192,7 @@ export class GameSession {
 
   private sampleInput(): InputState {
     this.ticksThisFrame += 1;
-    return { x: this.stickX, y: this.stickY, buttons: this.buttons.sample() };
+    return this.touchInput.sample();
   }
 
   private readonly frame = (nowMs: number): void => {
@@ -190,31 +214,24 @@ export class GameSession {
   };
 
   /**
-   * SUPUESTO — division of labour confirmed by shell.md §5/core.md §4.0: the
-   * shell already resolves the drag into a digital -1/0/1 axis with its own
-   * dead zone (`packages/shell/src/controls/touch.ts`), so this stores that
-   * value directly instead of running it back through `@arcade/core`'s
-   * `resolveStick`/`TouchInput` — doing both would either be a no-op (since
-   * |±1| always clears any dead zone below 1) or silently apply a SECOND,
-   * differently-owned dead zone with no clear reason to. `ButtonEdgeTracker`
-   * is still used directly for the flanco-safe `pressed` edge (§4.2), which
-   * is genuinely the core's job.
+   * M2.1 correction (core.md §4.0): `x`/`y` are now the CONTINUOUS
+   * displacement the shell measured against its own drawn radius, not a
+   * pre-resolved digital axis — `TouchInput.moveStick`/`resolveStick`
+   * (constructed above) apply the dead zone and produce the digital axis a
+   * game receives, exactly as core.md §4 always specified. Haptics moved out
+   * of this class entirely: `packages/shell/src/controls/{Stick,Button}.ts`
+   * now trigger them directly, since the control that receives the gesture
+   * is the one that actually knows "this is an actuation" (core.md §7.2).
    */
-  setStick(x: Axis, y: Axis): void {
-    const actuated = x !== 0 || y !== 0;
-    // core.md §7.2: haptics fire only on actuating a control, never on a game event.
-    if (actuated && !this.stickActuated) haptics.trigger();
-    this.stickActuated = actuated;
-    this.stickX = x;
-    this.stickY = y;
+  setStick(x: number, y: number): void {
+    this.touchInput.moveStick(x, y);
   }
 
   setButton(id: string, down: boolean): void {
     if (down) {
-      this.buttons.press(id);
-      haptics.trigger();
+      this.touchInput.press(id);
     } else {
-      this.buttons.release(id);
+      this.touchInput.release(id);
     }
   }
 
