@@ -137,7 +137,7 @@ export function realLocalStorage(): StorageLike | null {
 }
 
 interface NavigatorGlobals {
-  navigator?: { vibrate?(pattern: number | readonly number[]): boolean };
+  navigator?: { vibrate?(pattern: number | readonly number[]): boolean; onLine?: boolean };
 }
 
 /**
@@ -150,6 +150,97 @@ export function realVibrate(): ((pattern: number | readonly number[]) => boolean
   try {
     const nav = (globalThis as unknown as NavigatorGlobals).navigator;
     return nav?.vibrate ? nav.vibrate.bind(nav) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `navigator.onLine`, defaulting to `true` when unavailable or when reading
+ * it throws — an unknown connectivity state should never make the records
+ * queue (spec §8.6) or the diagnostics screen (spec §9) assume "offline" and
+ * hold something back that could otherwise be sent.
+ */
+export function realIsOnline(): boolean {
+  try {
+    return (globalThis as unknown as NavigatorGlobals).navigator?.onLine ?? true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Wall-clock time as ISO 8601, for display only (`RecordEntry.achievedAt`
+ * before a record is confirmed, `PauseLogEntry.startedAt`). Never used to
+ * order or validate anything the server is authoritative over — the server
+ * writes its own `created_at` (walking-skeleton.md §5) — and never used by
+ * game logic (Art. 3.3). Not a `globalThis` cast like the rest of this file:
+ * `Date` is a plain ES2022 global, present regardless of the DOM lib.
+ */
+export function realNowIso(): string {
+  return new Date().toISOString();
+}
+
+interface CryptoGlobals {
+  crypto: { randomUUID(): string };
+}
+
+/**
+ * Client-generated record id (spec §8.2: "identificador generado en el
+ * cliente"). `crypto.randomUUID()` is available in every target browser and
+ * in Node >= 22 without a polyfill, so no fallback is implemented.
+ */
+export function realGenerateClientId(): string {
+  return (globalThis as unknown as CryptoGlobals).crypto.randomUUID();
+}
+
+/** Narrow view of the one IndexedDB request shape this package needs — `get`/`put`/`delete`/`getAll` all return this. */
+export interface IDBRequestLike {
+  onsuccess: (() => void) | null;
+  onerror: (() => void) | null;
+  readonly result: unknown;
+  readonly error: unknown;
+}
+
+export interface IDBObjectStoreLike {
+  put(value: unknown): IDBRequestLike;
+  delete(key: string): IDBRequestLike;
+  getAll(): IDBRequestLike;
+}
+
+export interface IDBTransactionLike {
+  objectStore(name: string): IDBObjectStoreLike;
+}
+
+export interface IDBDatabaseLike {
+  createObjectStore(name: string, options: { keyPath: string }): IDBObjectStoreLike;
+  transaction(storeNames: string, mode: 'readonly' | 'readwrite'): IDBTransactionLike;
+  readonly objectStoreNames: { contains(name: string): boolean };
+}
+
+export interface IDBOpenDBRequestLike extends IDBRequestLike {
+  onupgradeneeded: (() => void) | null;
+}
+
+export interface IDBFactoryLike {
+  open(name: string, version: number): IDBOpenDBRequestLike;
+}
+
+interface IndexedDBGlobals {
+  indexedDB?: IDBFactoryLike;
+}
+
+/**
+ * The real `indexedDB`, or `null` when unavailable — reading the global
+ * itself can throw (some browsers block it entirely in a private/locked-down
+ * mode), which `records/indexeddb-queue-store.ts` treats as "no local
+ * persistence this session" rather than a crash (spec §8.1's queue is the
+ * source of truth, but a fallback in-memory queue is what keeps rule §8.6 —
+ * "nunca bloquea el juego" — true even on a browser with no IndexedDB at all).
+ */
+export function realIndexedDBFactory(): IDBFactoryLike | null {
+  try {
+    return (globalThis as unknown as IndexedDBGlobals).indexedDB ?? null;
   } catch {
     return null;
   }
