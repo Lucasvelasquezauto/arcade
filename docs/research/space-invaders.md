@@ -1,8 +1,13 @@
 # Investigación — Space Invaders
 
 **Estado:** paso 1 y paso 2 completos. Lucas eligió la **opción C** del comparador
-(2026-09-03) — ver §1. Queda una pieza de deuda documentada antes de fijar constantes de
-color en la spec: la paleta exacta fila por fila de la opción C (§1, §11.3).
+(2026-09-03) — ver §1. Cierre de las preguntas abiertas de §11 (2026-09-04): **§11.5
+(condición de game over) resuelta y VERIFICADA**; **§11.1 (coordenadas X de escudos)** y
+**§11.2 (dimensiones del sprite del OVNI)** avanzaron con nueva evidencia del desensamblado
+pero **siguen sin poder cerrarse con precisión de píxel** — ver detalle en cada sección y en
+§11; **§11.3 (paleta exacta por fila de la opción C) sigue abierta**, sin fuente nueva
+encontrada tras una segunda pasada de búsqueda — sigue siendo la única pieza de deuda que
+bloquea fijar constantes de color exactas en la spec.
 **Versión de referencia canónica:** Taito, 1978, mueble vertical (decisión ya tomada,
 `product-spec.md` §3.1). Variante a color: **elegida — opción C, conversión oficial a
 color RGB** (Taito "Space Invaders Color" / mismo generador de color que Space Invaders
@@ -123,9 +128,23 @@ la orientación vertical fija que exige `product-spec.md` §2.
 - **Posición Y inicial por ronda:** ver progresión en §7 (varía ronda a ronda, no es fija).
 - **Escudos:** 4 escudos, cada uno de **16 píxeles de ancho × 22 filas de alto** (44 bytes
   = 22 filas × 2 bytes/fila = 22×16 bits). `VERIFICADO` — computerarcheology.com, *Code*
-  (rutina de copiado de escudo). Las coordenadas X exactas de cada uno de los 4 escudos y
-  el offset Y de fila-a-pantalla no se pudieron extraer con precisión de píxel de la fuente
-  disponible en esta pasada — **pregunta abierta**, ver §11.
+  (rutina de copiado de escudo). **Cierre §11.1 (2026-09-04) — progreso parcial, sigue sin
+  poder cerrarse con precisión de píxel.** Se localizó la rutina exacta que posiciona los
+  escudos en pantalla, `CopyShields` (dirección `$021E`), con su propio comentario en la
+  fuente: *"A is 1 for screen-to-buffer, 0 for to buffer-to-screen; HL is screen coordinates
+  of first shield. There are 23 rows between shields; DE is sprite buffer in memory."*
+  El primer escudo usa `HL=$2806` como coordenada de pantalla inicial, y la rutina avanza
+  `$02E0` por cada uno de los 4 escudos (`LD A,$04` cuenta los escudos, `LD BC,$1602` = 22
+  filas × 2 bytes/fila para el patrón de un escudo). `VERIFICADO` — computerarcheology.com,
+  *Code* (rutina `CopyShields`, `$021E`–`$0227`). **Lo que sigue sin cerrarse:** la página no
+  publica una fórmula explícita ni una tabla de conversión de estas direcciones de VRAM a
+  coordenadas X en píxeles, y `Hardware.html` da una descripción del mapeo de VRAM
+  internamente inconsistente entre sí (mezcla bytes-por-columna de 28 y de 32) como para
+  derivar un valor de píxel con la confianza que exige el Art. 1.4. Convertir `$2806` y el
+  paso `$02E0` a coordenadas X reales requiere que un agente con acceso al desensamblado
+  completo (no solo fragmentos vía fetch) haga la conversión y la deje `VERIFICADO`, o que
+  se corra el ROM en MAME (implementación de referencia declarada) y se lea la posición en
+  pantalla directamente. Sigue como **pregunta abierta**, ver §11.1.
 - **Límites de movimiento del jugador:** el cañón se mueve solo en X, entre **X=0x30
   (48)** y **X=0xD9 (217)** en coordenadas de pantalla no rotada. `VERIFICADO` —
   computerarcheology.com, *Code*.
@@ -136,8 +155,19 @@ la orientación vertical fija que exige `product-spec.md` §2.
   player" en `$1971`).
 - **OVNI:** aparece en una fila Y fija cerca de la parte superior de la pantalla, dentro de
   un rango de movimiento acotado (`$28`–`$E1` en la coordenada usada por el juego).
-  `VERIFICADO` — computerarcheology.com, *Code*. Ancho/alto exacto del sprite del OVNI en
-  píxeles: no confirmado con precisión — pregunta abierta, ver §11.
+  `VERIFICADO` — computerarcheology.com, *Code*. **Cierre §11.2 (2026-09-04) — sigue
+  abierto.** Se confirmó que el objeto OVNI usa una estructura de 10 bytes (`LD B,$0A` con
+  comentario *"10 bytes in saucer structure"*, `$0704`) y que se dibuja con la rutina
+  genérica de sprites `DrawSimpSprite` (llamada en `$073C`–`$073F`, vía un descriptor de
+  esprite, no un tamaño fijo hardcodeado en esa rutina), con datos de sprite de la
+  explosión en `$1D7C`. `VERIFICADO` — computerarcheology.com, *Code*. **Lo que sigue sin
+  confirmarse:** el ancho/alto exacto en píxeles del gráfico del OVNI no está expresado en
+  ningún comentario de esa página — la estructura de 10 bytes describe el objeto de juego
+  (posición, estado, temporizador), no el tamaño de su bitmap. Extraerlo exige leer el
+  bitmap real de la ROM (tabla de sprites referenciada por el descriptor que usa
+  `DrawSimpSprite`) o medirlo directamente sobre el ROM cargado en MAME (implementación de
+  referencia declarada) — ninguna de las dos vías estuvo disponible en esta pasada. Sigue
+  como **pregunta abierta**, ver §11.2.
 
 ---
 
@@ -276,12 +306,15 @@ Lucas (ver §11).
   la vida de inmediato — no hace falta que termine la ronda ni que el invasor choque con el
   jugador propiamente. `VERIFICADO` — computerarcheology.com, *Code* (ver §3).
 - **Fin de partida:** se agota cuando las vidas llegan a 0 tras un "fin de vida instantáneo"
-  o tras ser alcanzado por un disparo enemigo. El documento fuente no detalla una pantalla
-  de "game over" distinta de agotar vidas — se asume el criterio estándar (vidas = 0 ⇒ fin),
-  consistente con cómo describen el ciclo todas las fuentes secundarias consultadas, pero
-  no se localizó la línea exacta de código que lo confirma en esta pasada — marcarlo
-  `DERIVADO` en vez de `VERIFICADO` y añadir a preguntas abiertas si algún agente necesita
-  certeza total antes de codificar el estado de "game over".
+  o tras ser alcanzado por un disparo enemigo. **Cierre §11.5 (2026-09-04) — resuelto,
+  `VERIFICADO`.** Se localizó la línea exacta del desensamblado que confirma la condición:
+  tras `CALL DsableGameTasks`, el código llama a `$092E` (comentado en la fuente como *"Get
+  number of ships for active player"*), compara el resultado contra cero con `AND A`
+  (comentado *"Any left?"*) y, si es cero, salta con `JP Z,$166D`, comentado literalmente
+  en la fuente como *"No ... handle game over for player"*. `VERIFICADO` —
+  computerarcheology.com, *Code* (`$02D7`–`$02DB`, rutina que llama a `$166D`). Ya no es
+  una suposición por consenso de fuentes secundarias: la condición es exactamente
+  "vidas del jugador activo = 0", confirmada por el propio comentario del desensamblado.
 
 ---
 
@@ -367,32 +400,48 @@ el product-spec como norma general de la app.
 
 ## 11. Preguntas abiertas
 
-1. **Coordenadas X exactas de los 4 escudos y offset Y fila-a-pantalla.** Se confirmaron
-   cantidad (4) y dimensiones (16×22 px) pero no las posiciones X exactas con precisión de
-   píxel. Antes de codificar el layout del campo de juego, hay que volver a
-   computerarcheology.com/Arcade/SpaceInvaders/Code.html (rutinas de dibujo de escudo) o al
-   desensamblado ROM directo y extraer la tabla de coordenadas.
-2. **Dimensiones exactas del sprite del OVNI en píxeles.** Se confirmó su rango de
-   movimiento en Y pero no su ancho/alto.
-3. **Paleta exacta por fila de la variante C (conversión oficial a color RGB / Space
-   Invaders Color = `sicv` en MAME / mismo generador de color que Part II).** Lucas ya
-   eligió esta opción (§1). Se confirmó que existe como hardware real (RGB de 3 bits, 8
-   colores posibles, mismo generador que Part II) y un comportamiento dinámico (pantalla
-   se pone roja durante la explosión del jugador), pero no la asignación exacta de color
-   por fila de invasores. Antes de fijar constantes de color en la spec: (a) revisar el
-   código de paleta completo de `src/mame/midw8080/8080bw.cpp` en mamedev/mame (la función
-   no se localizó completa en esta pasada, posiblemente en un archivo de video separado o
-   más abajo en el mismo archivo), o (b) conseguir una captura de pantalla real de `sicv`
-   corriendo en MAME. Mientras tanto, la spec puede avanzar con la aproximación `SUPUESTO`
-   descrita en §1.1 (bandas rojo/blanco/verde de bordes duros, igual que el celofán de la
-   opción A) sin bloquear el resto del trabajo.
+1. **[Actualizado 2026-09-04, sigue abierta] Coordenadas X exactas de los 4 escudos y
+   offset Y fila-a-pantalla.** Se confirmaron cantidad (4) y dimensiones (16×22 px). Esta
+   pasada localizó la rutina exacta que los posiciona, `CopyShields` (`$021E`), con
+   `HL=$2806` como coordenada de pantalla del primer escudo y avance de `$02E0` por escudo
+   (ver §3) — pero `computerarcheology.com` no publica una fórmula de conversión de
+   dirección de VRAM a píxel X que se pueda citar con la confianza que exige el Art. 1.4, y
+   `Hardware.html` da una explicación de esa conversión inconsistente consigo misma (28 vs.
+   32 bytes por columna). Convertir `$2806`/`$02E0` a coordenadas X reales queda pendiente:
+   requiere leer el desensamblado completo sin los recortes de un fetch por fragmentos, o
+   correr el ROM en MAME y leer la posición en pantalla directamente.
+2. **[Actualizado 2026-09-04, sigue abierta] Dimensiones exactas del sprite del OVNI en
+   píxeles.** Se confirmó su rango de movimiento en Y (ya lo estaba) y, en esta pasada, que
+   usa una estructura de objeto de 10 bytes y la rutina genérica `DrawSimpSprite` (ver §3) —
+   pero el ancho/alto del bitmap en sí no aparece comentado en `Code.html`. Requiere leer el
+   bitmap de la ROM referenciado por el descriptor de sprite, o medirlo sobre el ROM cargado
+   en MAME.
+3. **[Revisada 2026-09-04, sigue abierta — sin fuente nueva] Paleta exacta por fila de la
+   variante C** (conversión oficial a color RGB / Space Invaders Color = `sicv` en MAME /
+   mismo generador de color que Part II). Lucas ya eligió esta opción (§1). Se confirmó que
+   existe como hardware real (RGB de 3 bits, 8 colores posibles, mismo generador que Part
+   II) y un comportamiento dinámico (pantalla se pone roja durante la explosión del
+   jugador), pero no la asignación exacta de color por fila de invasores. Esta pasada
+   revisó de nuevo `src/mame/midw8080/8080bw.cpp` en mamedev/mame (el archivo es demasiado
+   grande para extraerlo completo por fragmentos; se confirmó la sección de puertos de
+   entrada de `sicv` pero no se localizó la función de paleta), `tcrf.net` (confirma en
+   prosa que "la versión CV añade color propiamente basado en hardware" pero sin datos por
+   fila) y la ficha de MAME en `adb.arcadeitalia.net` para `sicv` (campo "Colors: -", sin
+   catalogar). Ninguna fuente nueva cierra esto. Antes de fijar constantes de color en la
+   spec sigue habiendo dos caminos: (a) localizar la función de paleta completa de
+   `8080bw.cpp` con acceso directo al archivo (no por fetch fragmentado), o (b) conseguir
+   una captura de pantalla real de `sicv` corriendo en MAME. Mientras tanto, la spec puede
+   avanzar con la aproximación `SUPUESTO` descrita en §1.1 (bandas rojo/blanco/verde de
+   bordes duros, igual que el celofán de la opción A) sin bloquear el resto del trabajo.
 4. **Identificación de la placa/fabricante de la variante D** (la máquina de la foto de
    Lucas). Sin identificar, queda registrada como desviación de fuente (Constitución, Art.
    1.6) en vez de como variante documentada — no bloquea, pero es deuda de investigación
    abierta si en algún momento se quiere precisión adicional.
-5. **Condición exacta de "game over"** (vidas=0) — se asume por sentido común y consenso de
-   fuentes secundarias, pero no se localizó la línea exacta del desensamblado que lo
-   confirma (§7).
+5. **[Resuelta 2026-09-04, VERIFICADO] Condición exacta de "game over"** (vidas=0) — ya no
+   es una suposición: se localizó la línea exacta del desensamblado (`$02D7`–`$02DB`, salto
+   a `$166D`, comentado en la propia fuente como "handle game over for player" tras
+   comprobar "Any left?" sobre el número de naves del jugador activo). Ver detalle y cita
+   completa en §7. Cerrada, no requiere más trabajo.
 6. **"Nagoya shooting" / laguna de colisión en rondas avanzadas** (§10, bug 6) — confirmado
    solo por fuente secundaria (Wikipedia), no por el desensamblado. Verificar contra
    computerarcheology.com antes de decidir si se replica.
@@ -411,12 +460,14 @@ el product-spec como norma general de la app.
 **Peso (a) — desensamblado técnico comentado (fuente principal de este documento):**
 - [computerarcheology.com/Arcade/SpaceInvaders](https://www.computerarcheology.com/Arcade/SpaceInvaders/) — página principal, hardware, timing, aceleración, bugs.
 - [computerarcheology.com/Arcade/SpaceInvaders/Hardware.html](https://www.computerarcheology.com/Arcade/SpaceInvaders/Hardware.html) — resolución, mapa de memoria, controles, DIP switches.
-- [computerarcheology.com/Arcade/SpaceInvaders/Code.html](https://www.computerarcheology.com/Arcade/SpaceInvaders/Code.html) — geometría, escudos, OVNI, progresión de rondas, bug de colisión.
+- [computerarcheology.com/Arcade/SpaceInvaders/Code.html](https://www.computerarcheology.com/Arcade/SpaceInvaders/Code.html) — geometría, escudos, OVNI, progresión de rondas, bug de colisión. **2026-09-04:** además, rutina `CopyShields` (`$021E`, coordenada `$2806`/paso `$02E0` de escudos), estructura de 10 bytes del OVNI y rutina `DrawSimpSprite` (`$0704`, `$073C`), y confirmación textual de la condición de game over (`$02D7`–`$02DB`, salto a `$166D` — cierre de §11.5).
 
 **Peso (b) — implementaciones de referencia y análisis técnicos consultados como apoyo:**
-- [pcjs.org/machines/arcade/invaders](https://www.pcjs.org/machines/arcade/invaders/) — confirmación cruzada de resolución, controles y DIP switches.
+- [pcjs.org/machines/arcade/invaders](https://www.pcjs.org/machines/arcade/invaders/) — confirmación cruzada de resolución, controles y DIP switches. **2026-09-04:** revisada de nuevo buscando dimensiones del OVNI y condición de game over — no las tiene.
 - [raspberrypi.com — Coding Space Invaders' disintegrating shields (Wireframe #9)](https://www.raspberrypi.com/news/coding-space-invaders-disintegrating-shields-wireframe-9/) — confirmación del mecanismo de daño por superposición de sprites.
-- MAME (`invaders`, driver `misc/8080bw.cpp`) declarada como implementación de referencia para huecos futuros — no se extrajo código de ella en esta pasada.
+- [github.com/mamedev/mame — src/mame/midw8080/8080bw.cpp](https://github.com/mamedev/mame/blob/master/src/mame/midw8080/8080bw.cpp) — declarada como implementación de referencia. **2026-09-04:** revisada buscando la función de paleta de `sicv`; el archivo es demasiado extenso para extraerse completo con las herramientas de fetch disponibles en esta pasada — se confirmó la sección `INPUT_PORTS_START( sicv )` y la existencia de `sicv_base`, pero no se localizó la función de paleta ni una tabla de color por fila. Sigue como pendiente para un agente con acceso directo al archivo (§11.3).
+- [tcrf.net — Space Invaders (Arcade)](https://tcrf.net/Space_Invaders_(Arcade)) — **2026-09-04:** confirma en prosa que la versión CV "adds proper hardware-based color" pero sin datos de color por fila ni coordenadas/dimensiones de escudos u OVNI (§11.3).
+- [adb.arcadeitalia.net — ficha MAME `sicv`](https://adb.arcadeitalia.net/dettaglio_mame.php?game_name=sicv&lang=en) — **2026-09-04:** revisada de nuevo buscando color por fila; el campo de colores de la ficha está vacío ("Colors: -"), sin catalogar (§11.3).
 
 **Peso (c) — wikis técnicas y fichas con referencia primaria:**
 - [arcade-history.com — ficha Space Invaders 1978](https://www.arcade-history.com/?page=detail&id=2537) — tabla de puntos por tipo de invasor, controles, CPU.

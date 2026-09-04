@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Actualizado:** 2026-09-04 · **Propósito:** traspaso entre hilos orquestadores.
+**Actualizado:** 2026-09-04 (tarde) · **Propósito:** traspaso entre hilos orquestadores.
 
 Un hilo orquestador dura **un milestone**, no el proyecto: el historial de una
 conversación se reenvía completo en cada mensaje, así que un hilo largo se vuelve caro de
@@ -31,34 +31,83 @@ es exactamente lo que la constitución prohíbe.
 
 ## 2. Lo inmediato
 
-1. **Integrar la rama `m2-teclado`** en `main`. Está terminada y sin integrar: modo
-   teclado en PC, ampliación del mueble a la ventana, y dos correcciones de contrato (la
-   política de entrada vuelve al núcleo; el háptico se dispara desde el control del
-   shell). Su handoff vive en esa rama, en `docs/handoff/2.1-teclado.md`.
-2. **Puerta 1 — validación en PC por el propietario** (`specs/walking-skeleton.md` §4.1).
-   Aprueba por separado estética, controles y funcionamiento. **El desarrollo se detiene
-   hasta que apruebe.**
-3. **Puerta 2 — validación en los tres dispositivos** (§4.2), solo después de la puerta 1.
-4. Recién entonces empieza **M2: Space Invaders**.
+1. ~~Integrar la rama `m2-teclado` en `main`.~~ **Hecho.** Merge limpio (`875c692`),
+   `pnpm verify`/`pnpm build` en limpio, push aceptado, rama y worktree borrados.
+   Handoff: `docs/handoff/2.2-integracion-m2-teclado.md`.
+2. ~~Puerta 1 — validación en PC por el propietario~~ (`specs/walking-skeleton.md` §4.1).
+   **Cerrada, con dos salvedades registradas por el propietario:**
+   - **Estética (criterio 1): diferida a propósito.** Hoy el mueble es un recuadro sin
+     arte — el propietario decide resolverlo más adelante, cuando el resto de la
+     funcionalidad esté lista. PEND-05 (`product-spec.md` §13) sigue abierto; no se
+     cierra aquí.
+   - **Controles/funcionamiento (criterios 2 y 3): aprobados**, con la salvedad de que
+     el criterio de "disparo/movimiento responde" solo se pudo probar contra
+     `test-pattern` (no hay juego real todavía). Es exactamente lo que
+     `walking-skeleton.md` §4.1 ya advierte que esta puerta NO certifica: la sensación
+     final se juzga con un juego real (Constitución, Art. 4.2 — el segundo criterio de
+     cierre del piloto).
+   - Criterio 4 (verificación mecánica) ya estaba confirmado por agente antes de esta
+     ronda.
+3. **Decisión del propietario (2026-09-04): se invierte el orden.** Puerta 2
+   (validación en los tres dispositivos) **se pospone** hasta que Space Invaders funcione
+   en PC. Prioridad: cerrar M2 en el entorno donde el propietario puede iterar solo
+   (teclado, sin depender del teléfono), y recién entonces atender los tres dispositivos
+   —posiblemente ya con Space Invaders puesto, no con `test-pattern`.
+   **Fricción registrada, no bloqueante:** `walking-skeleton.md` puso la puerta 2 antes de
+   M2 a propósito, para que un fallo de plataforma (PWA, Safari, hápticos) se descubra
+   solo, no mezclado con un fallo del juego. Invertir el orden implica que si algo del
+   esqueleto falla en los teléfonos, se descubre más tarde y con Space Invaders encima —
+   el propietario decide asumir ese riesgo a cambio de no ser el cuello de botella de cada
+   iteración mientras el juego se construye. El criterio de cierre del piloto
+   (Constitución, Art. 4.2) sigue exigiendo, entre otras cosas, que funcione instalado
+   como PWA en Android y como web en iPhone — eso no desaparece, solo se verifica después.
+4. **Lo que sigue es M2: Space Invaders**, validado en PC. Ver §3 (actualizada) para el
+   siguiente paso concreto.
 
-## 3. M2, cuando llegue
+## 3. M2 — Space Invaders (en curso, prioridad actual)
 
 La investigación ya está hecha: `docs/research/space-invaders.md`, 45 constantes
-`VERIFICADO`. Variante elegida por el propietario: **conversión oficial a color RGB**
-(romset `sicv` en MAME). Vidas iniciales 3, vida extra a 1000 puntos.
+`VERIFICADO`. Variante elegida por el propietario (2026-09-03): **conversión oficial a
+color RGB, opción C del comparador** (romset `sicv` en MAME) — el comparador visual
+(2.2/2.3 de `execution-plan.md`) **ya está resuelto**, no es un paso pendiente. Vidas
+iniciales 3, vida extra a 1000 puntos — también ya decidido.
 
-**Antes de escribir su spec hay que cerrar la paleta exacta por fila** (§11.3 de la
-investigación): se confirmó el hardware RGB de 3 bits pero no qué color lleva cada fila.
-El propietario pidió una investigación corta de cierre en vez de aproximarla.
+**Antes de escribir la spec (2.4) hay que cerrar cuatro huecos de investigación**
+(`research/space-invaders.md` §11), los que afectan constantes que van directo a la spec
+con trazabilidad (Constitución, Art. 1.4):
 
-Hallazgo que no se puede perder: en esa variante **la pantalla se pone roja durante la
+1. §11.3 — **paleta exacta por fila** de la opción C. El propietario ya pidió esta
+   investigación de cierre explícitamente; es la más urgente.
+2. §11.1 — coordenadas X exactas de los 4 escudos y offset Y fila-a-pantalla.
+3. §11.2 — dimensiones exactas del sprite del OVNI.
+4. §11.5 — confirmar en el desensamblado la condición exacta de "game over" (hoy es
+   consenso de fuentes secundarias, no la línea del ROM).
+
+No bloquean la spec (quedan como `SUPUESTO`/deuda registrada si no se cierran): §11.4
+(placa de la variante D, no se usa), §11.6 (bug "Nagoya shooting"), §11.7 (colisión
+OVNI-escudos).
+
+Hallazgo que no se puede perder: en la opción C **la pantalla se pone roja durante la
 explosión del jugador**. No existe en las versiones de celofán.
 
-Otros pendientes conocidos, con su fuente: coordenadas X de los escudos y tamaño del
-sprite del OVNI (research §11); marquesina e icono definitivos, hoy provisionales
+**Cierre de investigación (2026-09-04):** §11.5 (game over) quedó `VERIFICADO`. §11.1
+(escudos) y §11.2 (OVNI) avanzaron pero siguen sin precisión de píxel. §11.3 (paleta) sigue
+abierta, sin fuente nueva. **Decisión de Lucas: avanzar con `SUPUESTO` documentado en vez
+de seguir investigando** — prioridad es ver el juego andando en PC.
+
+**Spec aprobada:** `docs/specs/games/space-invaders.md` (v1.0, aprobada por Lucas
+2026-09-04). Contiene los tres `SUPUESTO` (paleta, escudos, OVNI), aislados en
+`constants.ts`/`render.ts` del paquete del juego para que cerrarlos después no toque el
+núcleo.
+
+**En curso: 2.5 — implementación de Space Invaders**, CLI en
+`packages/games/space-invaders`, contra la spec cerrada. Encargo dado 2026-09-04. Falta
+integrarlo en `catalog` para que sea jugable desde el mueble (ver encargo).
+
+Pendientes no bloqueantes, sin prisa: marquesina e icono definitivos
 (`handoff/1.10-infra.md`); aviso de "hay versión nueva" para el service worker
-(`handoff/1.13-cierre-m1.md` §5); y la decisión de rotación horaria de Tetris con un solo
-botón (`product-spec.md` §2.1).
+(`handoff/1.13-cierre-m1.md` §5); rotación horaria de Tetris con un solo botón
+(`product-spec.md` §2.1) — es de otro juego, no bloquea esto.
 
 ## 4. Reglas de operación vigentes
 
