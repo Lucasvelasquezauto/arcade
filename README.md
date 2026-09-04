@@ -27,6 +27,29 @@ pnpm verify
 `pnpm verify` corre tipos, ESLint, dependency-cruiser, tests y la **prueba negativa**: que las
 reglas de la constitución efectivamente rompen el build cuando se violan.
 
+## Trabajo en paralelo con worktrees
+
+Para que varios agentes trabajen a la vez sin pisarse, cada rama en paralelo vive en su
+propio `git worktree`, y todos van dentro de `.worktrees/` (ignorado por git, ESLint y
+vitest — ver `.gitignore`, `eslint.config.js` y `vitest.config.ts`).
+
+```bash
+git worktree add .worktrees/<rama> -b <rama> main
+cd .worktrees/<rama>
+pnpm install   # cada worktree necesita el suyo, node_modules no se comparte
+```
+
+Al terminar e integrar la rama en `main`:
+
+```bash
+cd ../..                              # volver a la raíz del repo
+git worktree remove .worktrees/<rama>
+git branch -d <rama>
+```
+
+Si `git worktree remove` se niega porque quedan cambios sin committear, no uses `--force`:
+son cambios reales, hay que rescatarlos primero.
+
 ## Estado
 
 M1 en curso: monorepo, verificación mecánica y `@arcade/contracts`.

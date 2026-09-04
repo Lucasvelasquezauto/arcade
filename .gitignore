@@ -9,5 +9,8 @@ coverage/
 .vercel/
 .pnpm-store/
 
+# Worktrees de git para trabajo en paralelo (ver README).
+.worktrees/
+
 # Lanzador local del CLI (de Lucas, no del proyecto)
 claude-local.bat

@@ -10,6 +10,9 @@ export default tseslint.config(
       // Fixtures que existen para FALLAR a propósito.
       // Los ejecuta tools/verify-rules.mjs con --no-ignore.
       'tools/fixtures/**',
+      // Worktrees de git para trabajo en paralelo (ver README): son copias
+      // completas del repo, no código propio de esta rama.
+      '.worktrees/**',
     ],
   },
 
