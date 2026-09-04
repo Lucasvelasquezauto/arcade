@@ -84,6 +84,12 @@ normalizado contra su propio radio en pantalla, entre -1 y 1. El núcleo nunca t
 **0.15 del radio dibujado de la palanca**, marcado `SUPUESTO`: es un número a ajustar
 probándolo en el teléfono, no una constante con fundamento.
 
+**El teclado en PC entra por el mismo camino** (`docs/product-spec.md` §2.1). El shell
+escucha el teclado además del tacto, sin modo explícito ni detección de plataforma, y
+entrega al núcleo la misma clase de señales clasificadas. Debe ignorar la repetición
+automática del sistema operativo: una tecla mantenida es dirección sostenida, no una
+ráfaga. Los controles dibujados se animan igual con teclado que con el dedo.
+
 Reglas transversales:
 
 1. **Feedback visual siempre, en las dos plataformas.** La palanca se inclina siguiendo el

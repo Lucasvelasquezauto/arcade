@@ -1,6 +1,8 @@
 # Product Spec — Compilatorio Arcade
 
-**Versión:** 1.0 (borrador para aprobación)
+**Versión:** 1.2
+**Cambio v1.2 (2026-09-03):** se añade el modo teclado en PC (§2.1), como modo de
+conveniencia y de prueba. El objetivo de diseño sigue siendo el celular en vertical.
 **Fecha:** 2026-09-03
 **Estado:** pendiente de aprobación por el propietario del proyecto (Lucas)
 **Documento superior:** `constitution.md` (manda en caso de conflicto)
@@ -25,9 +27,51 @@ sacrifica, cuando hay que sacrificar algo, es la comodidad de implementación.
 | Usuarios | El propietario y su círculo cercano. Uso personal, sin fines comerciales. |
 | Dispositivos | 3 celulares: 2 Android + 1 iPhone. |
 | Orientación | **Vertical, fija.** La app no se rota ni ofrece modo horizontal. |
-| Entrada | **Solo táctil.** No se soporta teclado ni gamepad físico. |
+| Entrada | **Táctil** en el celular, que es el objetivo. **Teclado** en PC, como modo de conveniencia y prueba (§2.1). No se soporta gamepad físico. |
 | Conectividad | Se asume intermitente. La app debe ser jugable sin conexión. |
-| Escritorio | No es objetivo. Si se ve razonable en un navegador de escritorio, es una consecuencia, no un requisito. |
+| Escritorio | **No es objetivo de diseño**, pero sí es jugable con teclado (§2.1). El mueble se sigue componiendo en vertical; no se diseñan layouts de escritorio. |
+
+### 2.1 Modo teclado en PC
+
+**Propósito.** Poder jugar ocasionalmente desde el computador y, sobre todo, **poder
+probar un juego sin depender de un teléfono**. Hoy validar cualquier cambio exige sacar
+el celular, lo que convierte al propietario en el cuello de botella de cada iteración.
+
+**Mapeo.**
+
+| Tecla | Acción |
+|---|---|
+| `W` `A` `S` `D`, y las flechas como alias | Palanca: arriba, izquierda, abajo, derecha |
+| `L` | Primer botón declarado por el juego |
+| `K` | Segundo botón, si el juego declara uno |
+| `J` | Tercer botón, si el juego declara uno |
+
+Los botones se asignan **por posición en el panel declarado**, de derecha a izquierda,
+no por nombre: un juego de un solo botón usa `L` y nada más. Space Invaders dispara con
+`L`; Pac-Man no usa ninguna; Tetris rota con `L` y `K`; Arkanoid dispara el láser con `L`.
+
+**Reglas.**
+
+1. **El mueble no cambia.** Se sigue componiendo en vertical, con marquesina, bisel y
+   panel. En una pantalla ancha se centra; no se rediseña.
+2. **Los controles en pantalla responden al teclado.** Presionar `A` inclina visualmente
+   la palanca; presionar `L` hunde el botón. Una sola forma de leer el estado del control,
+   y una sola interfaz que mantener.
+3. **El teclado entra por el mismo camino que el tacto.** El shell lo escucha y entrega al
+   núcleo señales ya clasificadas; el núcleo produce el mismo `InputState`. La lógica de
+   juego no sabe —ni puede saber— de dónde vino la entrada.
+4. **Sin repetición automática del sistema operativo.** Una tecla mantenida es una
+   dirección sostenida, no una ráfaga de pulsaciones: el flanco `pressed` debe valer una
+   sola vez por pulsación real, igual que con el dedo.
+5. **Táctil y teclado conviven** sin modo explícito: la app no pregunta ni detecta
+   plataforma, simplemente escucha ambos.
+6. **Sin háptico en PC**, y no se emula.
+
+**Lo que este modo NO valida.** Un teclado es digital y preciso, más parecido a la palanca
+original que un dedo sobre vidrio. Sirve para validar fidelidad —velocidades, puntajes,
+IA, progresión, pausa— pero **no jugabilidad táctil**. La desviación más grande del
+proyecto es el control de Arkanoid con palanca en vez de perilla, y esa solo se juzga con
+el teléfono en la mano.
 
 ## 3. Alcance funcional
 
@@ -104,7 +148,7 @@ de su lógica.
 - Multijugador, en cualquier forma.
 - Cuentas de usuario, autenticación o perfiles.
 - Guardado de partidas (ver §8 y §13).
-- Modo horizontal, escritorio, teclado o gamepad.
+- Modo horizontal y gamepad físico. (El teclado en PC sí entra en alcance desde v1.2, §2.1.)
 - Publicación en tiendas de aplicaciones.
 - Cualquier telemetría, analítica o seguimiento.
 
