@@ -70,28 +70,46 @@ nada, sin depender de un juego real.
 
 ## 4. Criterios de aceptación
 
-El esqueleto está terminado cuando, **en los tres dispositivos reales**:
+La validación ocurre en **dos puertas sucesivas**. No se pasa a la segunda sin aprobar la
+primera. El orden no es burocracia: separa dos clases de fallo. Si algo se ve o se juega
+mal y se descubre en el teléfono, no se sabe si el defecto es del juego o del dispositivo.
 
-1. La app carga desde su URL de Vercel.
-2. Está instalada como PWA en los dos Android, con icono propio y sin barra del navegador;
-   funciona como web en el iPhone.
-3. Funciona **sin conexión** tras la primera carga.
-4. El juego de prueba corre a **60 fps sostenidos**, medido y registrado.
-5. Al cambiar de app y volver: cuenta regresiva de 3 segundos, y **el temporizador de 10
-   segundos retoma exactamente donde estaba**. Verificado a propósito con el temporizador
-   corriendo, no con el juego quieto.
-6. Un puntaje entra al top 10, se ingresa un nombre de 5 caracteres, y **aparece en los otros
-   dos dispositivos**.
-7. Un récord hecho **en modo avión** queda encolado, se marca como no confirmado, y sube al
-   recuperar conexión (en el iPhone, al reabrir la app).
-8. El sonido se prende y se apaga durante la partida y desde la pantalla de selección.
-9. En Android vibra el control al accionarlo; en iPhone no vibra pero el control se mueve
-   igual.
-10. `pnpm verify` (tipos + ESLint + dependency-cruiser + tests) pasa en limpio, y **falla a
-    propósito** si se introduce un `setTimeout` en la lógica o un import cruzado entre juegos.
+### 4.1 Puerta 1 — Validación en PC
 
-El criterio 10 no es opcional: es la prueba de que la constitución es ejecutable y no un
-documento decorativo.
+Con el modo teclado (`product-spec.md` §2.1), sobre la URL desplegada. El propietario
+aprueba tres cosas por separado, y puede rechazar cada una por su cuenta:
+
+| # | Qué se aprueba |
+|---|---|
+| 1 | **Estética.** El mueble, la marquesina, el bisel, el panel, la tipografía y el color de acento. Es la primera vez que se ve la máquina completa. |
+| 2 | **Controles.** La palanca y el botón responden, se animan al accionarlos, y el teclado se siente correcto. |
+| 3 | **Funcionamiento.** Se elige un juego y arranca; el puntaje sube; los temporizadores internos corren; al perder visibilidad se pausa y al volver hay cuenta regresiva de 3 s y el estado retoma exactamente donde iba; se ingresa un nombre de 5 caracteres; el récord aparece en la tabla; un récord logrado sin conexión se encola y sube al reconectar; el sonido se prende y se apaga en partida y desde la selección. |
+| 4 | **Verificación mecánica.** `pnpm verify` pasa en limpio **y falla a propósito** cuando se introduce un `setTimeout` en la lógica o un import cruzado entre juegos. |
+
+**Lo que esta puerta NO aprueba, y no debe darse por bueno:** la sensación táctil, el
+háptico, la instalación como PWA, y el rendimiento real. Sesenta cuadros por segundo en un
+PC no dicen nada sobre un teléfono.
+
+### 4.2 Puerta 2 — Validación en los tres dispositivos
+
+Solo después de aprobar la puerta 1:
+
+| # | Qué se verifica |
+|---|---|
+| 5 | Instalada como PWA en los dos Android, con icono propio y sin barra del navegador; funciona como web en el iPhone. |
+| 6 | Funciona **sin conexión** tras la primera carga. |
+| 7 | **60 fps sostenidos**, medidos con la pantalla de diagnóstico, no a ojo. |
+| 8 | La pausa por cambio de app conserva el estado completo, verificada **con un temporizador corriendo**, no con el juego quieto. |
+| 9 | Un puntaje entra al top 10 y **aparece en los otros dos dispositivos**. |
+| 10 | Un récord logrado en modo avión queda encolado, se marca como no confirmado y sube al recuperar conexión (en el iPhone, al reabrir la app). |
+| 11 | En Android vibra el control al accionarlo; en iPhone no vibra, pero el control se mueve igual. |
+| 12 | La jugabilidad táctil es aceptable. Es un juicio del propietario, no una medición. |
+
+### 4.3 Criterio estructural, verificable en cualquier momento
+
+| # | Qué se verifica |
+|---|---|
+| 13 | Agregar un quinto juego no requiere modificar el núcleo ni el shell. |
 
 ## 5. Modelo de datos
 
