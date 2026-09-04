@@ -32,6 +32,18 @@ export const MARQUEE_HEIGHT_PX = 64;
 export const PANEL_MIN_HEIGHT_PX = 180;
 
 /**
+ * SUPUESTO — proporción (ancho/alto) que el mueble conserva al ampliarse en
+ * PC (product-spec.md §2.1 regla 1: "el mueble no cambia de forma: cambia de
+ * tamaño"). Ningún documento fija el ancho/alto CSS real de los tres
+ * celulares objetivo, así que no hay un número "correcto" que derivar; se
+ * eligió una proporción de teléfono moderno típica (9:19.5) porque el mueble
+ * ya se compone en vertical para celular y esta es la familia de formas que
+ * ese diseño ya asume. Ajustar este número no cambia ninguna lógica, solo
+ * qué tan angosto se ve el mueble en una ventana ancha.
+ */
+export const CABINET_ASPECT_RATIO = 9 / 19.5;
+
+/**
  * Nombre de la app. PEND-05 en product-spec.md §13: sin decidir todavía.
  * SUPUESTO — placeholder único; cambiar la app entera es cambiar esta línea.
  */

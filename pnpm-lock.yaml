@@ -83,6 +83,9 @@ importers:
       '@arcade/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@arcade/core':
+        specifier: workspace:*
+        version: link:../core
       '@preact/signals':
         specifier: ^1.3.2
         version: 1.3.4(preact@10.29.8)

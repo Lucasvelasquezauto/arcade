@@ -1,32 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { clampToRadius, resolveStickAxis, STICK_DEAD_ZONE_RATIO } from '../src/controls/touch.js';
+import { clampToRadius, normalizeStickDrag } from '../src/controls/touch.js';
 
 const RADIUS = 100;
 
-describe('resolveStickAxis (core.md §4.3)', () => {
-  it('centres a horizontal stick inside the dead zone', () => {
-    const insideDeadZone = RADIUS * STICK_DEAD_ZONE_RATIO - 1;
-    expect(resolveStickAxis('horizontal', { dx: insideDeadZone, dy: 0 }, RADIUS)).toEqual({ x: 0, y: 0 });
+describe('normalizeStickDrag (core.md §4.0 — shell hands over the CONTINUOUS displacement)', () => {
+  it('normalises a drag inside the radius to a fraction of it, per axis', () => {
+    expect(normalizeStickDrag({ dx: 50, dy: -25 }, RADIUS)).toEqual({ x: 0.5, y: -0.25 });
   });
 
-  it('a horizontal stick never reports y', () => {
-    expect(resolveStickAxis('horizontal', { dx: 50, dy: 90 }, RADIUS)).toEqual({ x: 1, y: 0 });
-    expect(resolveStickAxis('horizontal', { dx: -50, dy: -90 }, RADIUS)).toEqual({ x: -1, y: 0 });
+  it('a drag at the exact radius normalises to magnitude 1', () => {
+    expect(normalizeStickDrag({ dx: RADIUS, dy: 0 }, RADIUS)).toEqual({ x: 1, y: 0 });
   });
 
-  it('a four-way stick never reports a diagonal', () => {
-    const result = resolveStickAxis('four-way', { dx: 40, dy: 80 }, RADIUS);
-    expect(result.x === 0 || result.y === 0).toBe(true);
+  it('clamps a drag beyond the radius to magnitude 1, preserving direction', () => {
+    const result = normalizeStickDrag({ dx: 300, dy: 0 }, RADIUS);
+    expect(result.x).toBeCloseTo(1);
+    expect(result.y).toBeCloseTo(0);
   });
 
-  it('four-way favours the axis with the larger displacement', () => {
-    expect(resolveStickAxis('four-way', { dx: 80, dy: 20 }, RADIUS)).toEqual({ x: 1, y: 0 });
-    expect(resolveStickAxis('four-way', { dx: 20, dy: -80 }, RADIUS)).toEqual({ x: 0, y: -1 });
+  it('clamps a diagonal beyond the radius without distorting its direction', () => {
+    const result = normalizeStickDrag({ dx: 300, dy: 300 }, RADIUS);
+    expect(Math.hypot(result.x, result.y)).toBeCloseTo(1);
+    expect(result.x).toBeCloseTo(result.y);
   });
 
-  it('centres a four-way stick when both axes are inside the dead zone', () => {
-    const insideDeadZone = RADIUS * STICK_DEAD_ZONE_RATIO - 1;
-    expect(resolveStickAxis('four-way', { dx: insideDeadZone, dy: insideDeadZone }, RADIUS)).toEqual({ x: 0, y: 0 });
+  it('a centred drag normalises to centred', () => {
+    expect(normalizeStickDrag({ dx: 0, dy: 0 }, RADIUS)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('never divides by a non-positive radius', () => {
+    expect(normalizeStickDrag({ dx: 40, dy: 10 }, 0)).toEqual({ x: 0, y: 0 });
   });
 });
 
