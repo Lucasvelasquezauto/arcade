@@ -1,37 +1,23 @@
 /**
- * apps/arcade — punto de entrada de Vite (M1.10, andamiaje desplegable).
- * Monta una página mínima ("ARCADE") sin consumir el shell ni el catálogo:
- * esos llegan en una tarea posterior, sobre otra rama.
+ * apps/arcade — mounts the real shell with the real catalog and a real
+ * `CoreHandle` (M1.11, "cableado"). Wiring only: no game logic, no
+ * game-specific render, and no core logic lives here — this package's
+ * CLAUDE.md forbids all three.
  *
- * SUPUESTO: se nombra `main.ts` y no `main.tsx` porque todavía no hay JSX
- * que compilar aquí (el shell en Preact llega después) y el tsconfig
- * compartido no declara la opción `jsx`, que es de alcance de todo el
- * monorepo y no de este paquete. Al integrar el shell, este archivo pasa a
- * `.tsx` junto con el cambio de tsconfig, pedido al hilo orquestador.
- *
- * SUPUESTO: se accede a `document` mediante un cast local a `globalThis`,
- * como hace `packages/core/src/env.ts`, en vez de agregar la lib `dom` al
- * tsconfig compartido — esa lib es global a todo el `tsc` del monorepo y
- * filtraría tipos del DOM hacia la lógica pura de juego (Art. 3.1).
+ * SUPUESTO (resuelto): M1.10 dejó este archivo como `main.ts` porque el
+ * tsconfig compartido todavía no declaraba `jsx`. M1.7 ya agregó `jsx`/
+ * `jsxImportSource` a `tsconfig.base.json` con autorización explícita, pero
+ * el `include` de `tsconfig.json` (raíz) sigue sin listar `**\/*.tsx` — el
+ * mismo hueco que `docs/handoff/1.7-shell.md` documentó para `packages/shell`.
+ * Tocar ese `include` es un archivo compartido fuera de mi alcance, así que
+ * este archivo sigue en `.ts` con `h()`, igual que el resto del shell.
  */
+import { h, render } from 'preact';
+import { App } from '@arcade/shell';
+import { CATALOG } from '@arcade/catalog';
+import { createRealCoreHandle } from './core-handle.js';
 
-interface MountTarget {
-  textContent: string | null;
-}
-
-interface DocumentLike {
-  getElementById(id: string): MountTarget | null;
-}
-
-interface BrowserDocumentGlobal {
-  document: DocumentLike;
-}
-
-function documentGlobal(): DocumentLike {
-  return (globalThis as unknown as BrowserDocumentGlobal).document;
-}
-
-const root = documentGlobal().getElementById('app');
+const root = document.getElementById('app');
 if (root) {
-  root.textContent = 'ARCADE';
+  render(h(App, { catalog: CATALOG, core: createRealCoreHandle() }), root);
 }

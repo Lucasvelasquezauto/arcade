@@ -5,5 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" }
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@arcade/contracts": "workspace:*",
+    "@arcade/game-test-pattern": "workspace:*"
+  }
 }
