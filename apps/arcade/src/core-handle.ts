@@ -6,13 +6,59 @@
  * `GameLoop`; the shell never sees any of it (Art. 3.7), and the core never
  * knows a game exists until this file hands it one (Art. 3.8).
  */
-import { WebAudioPlayer } from '@arcade/core';
-import type { CoreHandle, DiagnosticsView, RecordsView, SessionView } from '@arcade/shell';
+import {
+  WebAudioPlayer,
+  RecordsService,
+  createRecordQueueStore,
+  createSupabaseRecordsClient,
+  attachAutoFlush,
+  type RecordsNetworkClient,
+} from '@arcade/core';
+import type { CoreHandle, DiagnosticsView, SessionView } from '@arcade/shell';
 import { findCatalogEntry } from '@arcade/catalog';
 import { GameSession } from './game-session.js';
 
 const IDLE_SESSION_VIEW: SessionView = { score: 0, status: 'countdown', countdown: null, gameStatus: 'playing' };
-const IDLE_RECORDS_VIEW: RecordsView = { top10: [] };
+
+// core.md §8.8: credentials arrive as env vars, never hardcoded. `@arcade/core`
+// deliberately does not read `import.meta.env` itself (that would couple the
+// platform to Vite, docs/handoff/1.9-core-records.md §2) — apps/arcade, as the
+// composition root, is the one place that reads them and hands them over.
+const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY: string = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// REPORTADO (docs/handoff/1.13-cierre-m1.md): `@arcade/core`'s `index.ts`
+// does not re-export `realGenerateClientId`/`realNowIso` from `env.ts` (only
+// `records/*` and `diagnostics/*` are barrel-exported), even though
+// docs/handoff/1.9-core-records.md §3's own recipe imports both from
+// `@arcade/core`. Not a `packages/core` change I'm allowed to make here, and
+// these are trivial standard-Web-API one-liners with no core-internal
+// coupling, so they are provided locally instead of blocking on it.
+const generateClientId = (): string => crypto.randomUUID();
+const nowIso = (): string => new Date().toISOString();
+
+/**
+ * §8.6 ("un fallo de red nunca puede bloquear el juego") also covers
+ * construction, not just calls: `createSupabaseRecordsClient` validates its
+ * config synchronously and throws if the URL is missing/malformed
+ * (`supabaseUrl is required`), and `createRealCoreHandle` runs before the
+ * shell ever renders a single frame — an uncaught throw here would blank the
+ * whole cabinet before a player could even pick a game, which is a worse
+ * failure than "no records today". Falling back to a network client that
+ * always rejects keeps the local queue and the rest of the app working;
+ * `RecordsQueue.flush` already swallows a rejection per record (§8.6).
+ */
+function createRecordsNetworkClient(): RecordsNetworkClient {
+  try {
+    return createSupabaseRecordsClient({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY });
+  } catch (error) {
+    console.error('CoreHandle: no se pudo construir el cliente de récords de Supabase; la cola local sigue activa.', error);
+    return {
+      submitScore: () => Promise.reject(new Error('Records network client unavailable')),
+      getTopScores: () => Promise.resolve([]),
+    };
+  }
+}
 
 export function createRealCoreHandle(): CoreHandle {
   const audioPlayer = new WebAudioPlayer();
@@ -29,11 +75,41 @@ export function createRealCoreHandle(): CoreHandle {
     online = false;
   });
 
+  // docs/handoff/1.9-core-records.md §3: assembled exactly as that recipe
+  // describes. §8.6: `submit`/`flush` never await the network on the caller's
+  // path, so nothing here can make a player wait on Supabase.
+  const recordsService = new RecordsService({
+    store: createRecordQueueStore(),
+    network: createRecordsNetworkClient(),
+    generateClientId,
+    now: nowIso,
+  });
+  // §8.3: three of the four flush triggers (open, focus, online) — the
+  // fourth (end of game) has no event in @arcade/core to hang off, since
+  // that package has no notion of a running session; wired below, in
+  // publishSession, where this composition root already observes it.
+  attachAutoFlush(recordsService);
+
+  let recordsQueueSize = 0;
+  recordsService.subscribeQueueSize((size) => {
+    recordsQueueSize = size;
+  });
+
   let session: GameSession | null = null;
+  let lastKnownScore = 0;
+  let previousGameStatus: 'playing' | 'over' = 'playing';
   const sessionListeners = new Set<(view: SessionView) => void>();
 
   function publishSession(): void {
     const view = session?.view() ?? IDLE_SESSION_VIEW;
+    if (session !== null) {
+      lastKnownScore = view.score;
+      // §8.3 "al terminar cada partida": the one flush trigger `attachAutoFlush`
+      // cannot cover. Fires once, on the playing->over edge, never on every
+      // frame the game stays over.
+      if (previousGameStatus === 'playing' && view.gameStatus === 'over') void recordsService.flush();
+      previousGameStatus = view.gameStatus;
+    }
     for (const listener of sessionListeners) listener(view);
   }
 
@@ -47,6 +123,7 @@ export function createRealCoreHandle(): CoreHandle {
       endSession();
       const entry = findCatalogEntry(gameId);
       if (!entry) throw new Error(`CoreHandle.attachCanvas: id de juego desconocido en el catálogo: "${gameId}"`);
+      previousGameStatus = 'playing';
       session = new GameSession(canvas, entry, audioPlayer, publishSession);
       publishSession();
     },
@@ -81,24 +158,16 @@ export function createRealCoreHandle(): CoreHandle {
     },
 
     submitScore(gameId, name) {
-      /**
-       * PUNTO DE CONEXIÓN PARA RÉCORDS — `@arcade/core` todavía no expone un
-       * cliente de récords (docs/specs/core.md §8, en construcción en
-       * paralelo por otro agente; ver docs/handoff/1.11-cableado.md). Cuando
-       * exista, este método debe delegar en él (encolar en IndexedDB,
-       * reintentar en segundo plano, releer el top 10 del servidor) en vez de
-       * no hacer nada. Deliberadamente NO se inventa aquí un cliente de
-       * récords propio — la tarea lo prohíbe explícitamente.
-       */
-      void gameId;
-      void name;
+      // The score comes from the session that just ended, not from this call
+      // (CoreHandle.submitScore only takes gameId/name — see shell/src/types.ts)
+      // — by the time NameEntryScreen calls this, GameScreen has already
+      // unmounted and detachCanvas destroyed the session. §8.6: fire-and-forget,
+      // never awaited, so a slow or failed network never blocks this call.
+      void recordsService.submit(gameId, name, lastKnownScore);
     },
 
-    subscribeRecords(_gameId, listener) {
-      // Mismo punto de conexión que submitScore: hasta que el núcleo tenga
-      // récords, la tabla se muestra siempre vacía, nunca rota.
-      listener(IDLE_RECORDS_VIEW);
-      return () => {};
+    subscribeRecords(gameId, listener) {
+      return recordsService.subscribeRecords(gameId, listener);
     },
 
     setMuted(muted) {
@@ -112,7 +181,7 @@ export function createRealCoreHandle(): CoreHandle {
           fps: metrics.fps,
           ticksPerSecond: metrics.ticksPerSecond,
           droppedTicks: metrics.droppedTicks,
-          recordsQueueSize: 0, // SUPUESTO — sin cola de récords todavía; ver submitScore.
+          recordsQueueSize,
           online,
           pauseLog: metrics.pauseLog,
         };
