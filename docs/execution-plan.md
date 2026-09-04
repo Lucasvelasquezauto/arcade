@@ -61,6 +61,21 @@ El criterio no es la dificultad aparente sino **cuánto se propaga un error**.
 | Reconstrucción de sprites y sonidos | **Sonnet** | Trabajo de detalle contra referencias elegidas |
 | Redacción de los `CLAUDE.md` | **Sonnet** | A partir de una plantilla que define Opus |
 
+**Nivel de esfuerzo, además del modelo.** El esfuerzo de razonamiento se pide explícito
+al abrir el CLI: **medio por defecto**, **bajo** para trabajo mecánico contra una spec
+cerrada (andamiaje, configuración, migraciones), y **alto solo cuando la tarea incluye
+diagnosticar o decidir**. No es una economía menor: buena parte de lo que un agente gasta
+es razonamiento que la mayoría de las tareas no necesita. Pero los tres hallazgos que más
+valieron en M1 —el tick perdido por redondeo, los shims .cmd de Windows, la URL duplicada
+de Supabase— salieron de agentes que estaban diagnosticando: ahí el esfuerzo alto se paga.
+
+**Los agentes no abren navegadores.** Los tests automáticos se quedan: corren en
+milisegundos, no cuestan nada al ejecutarse, y son lo que atrapa los fallos silenciosos.
+La verificación manual, en cambio, es cara y poco fiable en un entorno automatizado —en M1
+un agente tuvo que interceptar `requestAnimationFrame` porque su navegador estaba
+estrangulado— y el propietario la hace en minutos. Cada encargo termina con una **lista
+numerada de qué probar**, sin repetir lo ya probado, y él responde qué funciona y qué no.
+
 Regla práctica: **Opus decide, Sonnet ejecuta, Opus revisa lo que Sonnet decidió sin querer.**
 Si un agente Sonnet se topa con una decisión que la spec no cubre, no la resuelve: la marca
 como `SUPUESTO` y sigue (Art. 2.7). El hilo orquestador las recoge y las resuelve.
