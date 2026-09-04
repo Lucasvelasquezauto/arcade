@@ -144,6 +144,12 @@ núcleo hace el resto.
 3. **Bandas negras** alrededor del área útil, dentro del bisel, como un monitor real. Nunca
    se deforma la imagen para llenar la pantalla.
 4. Se respeta `devicePixelRatio` para que el escalado entero se calcule en píxeles físicos.
+4b. **Ampliación final en PC (`product-spec.md` §2.1).** En pantallas donde el mueble se
+   amplía para llenar la ventana con un factor no entero, el orden es: dibujar a escala
+   **entera** sobre una superficie interna, y ampliar esa superficie completa al tamaño
+   final con **suavizado uniforme**. Nunca ampliar el dibujo directamente con un factor
+   fraccionario: produce píxeles de tamaños desiguales, que es el artefacto más visible en
+   sprites. En el celular no se usa esta ruta: ahí la ampliación es entera y sin suavizado.
 5. Los sprites se cargan del manifiesto declarado por el juego y se resuelven por
    identificador. El núcleo no conoce ningún sprite concreto.
 

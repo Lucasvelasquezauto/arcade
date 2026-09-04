@@ -2,7 +2,8 @@
 
 **Versión:** 1.2
 **Cambio v1.2 (2026-09-03):** se añade el modo teclado en PC (§2.1), como modo de
-conveniencia y de prueba. El objetivo de diseño sigue siendo el celular en vertical.
+conveniencia y de prueba, con un único botón de acción y ampliación del mueble al tamaño
+de la ventana. El objetivo de diseño sigue siendo el celular en vertical.
 **Fecha:** 2026-09-03
 **Estado:** pendiente de aprobación por el propietario del proyecto (Lucas)
 **Documento superior:** `constitution.md` (manda en caso de conflicto)
@@ -42,18 +43,36 @@ el celular, lo que convierte al propietario en el cuello de botella de cada iter
 | Tecla | Acción |
 |---|---|
 | `W` `A` `S` `D`, y las flechas como alias | Palanca: arriba, izquierda, abajo, derecha |
-| `L` | Primer botón declarado por el juego |
-| `K` | Segundo botón, si el juego declara uno |
-| `J` | Tercer botón, si el juego declara uno |
+| `L` | El botón de acción, único |
 
-Los botones se asignan **por posición en el panel declarado**, de derecha a izquierda,
-no por nombre: un juego de un solo botón usa `L` y nada más. Space Invaders dispara con
-`L`; Pac-Man no usa ninguna; Tetris rota con `L` y `K`; Arkanoid dispara el láser con `L`.
+**Un solo botón, con la mecánica propia de cada juego.** Estos juegos se jugaban con una
+palanca y un botón; el significado de ese botón lo pone el juego, no el teclado. Space
+Invaders dispara, Arkanoid lanza el láser, Tetris rota, Pac-Man no lo usa. Ningún juego
+declara un segundo botón sin una decisión explícita del propietario.
+
+> **Consecuencia registrada para Tetris.** El Sega de 1988 rotaba solo en sentido
+> antihorario con su botón; el giro horario se conseguía con tres botones tocados en
+> secuencia. Con un solo botón ese giro desaparece. La decisión —vivir sin giro horario, o
+> asignarlo a la palanca hacia arriba— se toma al escribir la spec de Tetris y se registra
+> allí como desviación (Constitución, Art. 1.6).
 
 **Reglas.**
 
-1. **El mueble no cambia.** Se sigue componiendo en vertical, con marquesina, bisel y
-   panel. En una pantalla ancha se centra; no se rediseña.
+1. **El mueble no cambia de forma: cambia de tamaño.** Se sigue componiendo en vertical,
+   con marquesina, bisel y panel, y se **amplía como un todo hasta llenar la altura
+   disponible de la ventana**, conservando su proporción y centrado. Nunca aparece más
+   campo de juego del que había: es zoom, no más píxeles.
+
+   **Cómo se amplía, y por qué así.** Cuando la ventana no da un factor exacto —2,7 en vez
+   de 2 o 3— ampliar directamente dejaría unos píxeles del juego más anchos que otros, que
+   es el artefacto más visible en gráficos de sprites y se acentúa con el movimiento. Para
+   evitarlo, el juego se dibuja primero a **escala entera** sobre una superficie interna, y
+   esa superficie completa se amplía después al tamaño final con **suavizado uniforme**. El
+   resultado se ve levemente más blando, pero parejo, sin píxeles de tamaños desiguales.
+
+   **En el celular esto no aplica:** ahí la ampliación es de múltiplo entero siempre, sin
+   suavizado, según `docs/specs/core.md` §5. El celular es el objetivo de diseño y ahí la
+   nitidez manda; el PC es conveniencia y ahí manda llenar la ventana.
 2. **Los controles en pantalla responden al teclado.** Presionar `A` inclina visualmente
    la palanca; presionar `L` hunde el botón. Una sola forma de leer el estado del control,
    y una sola interfaz que mantener.
