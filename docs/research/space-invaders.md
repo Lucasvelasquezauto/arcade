@@ -2,12 +2,14 @@
 
 **Estado:** paso 1 y paso 2 completos. Lucas eligió la **opción C** del comparador
 (2026-09-03) — ver §1. Cierre de las preguntas abiertas de §11 (2026-09-04): **§11.5
-(condición de game over) resuelta y VERIFICADA**; **§11.1 (coordenadas X de escudos)** y
-**§11.2 (dimensiones del sprite del OVNI)** avanzaron con nueva evidencia del desensamblado
-pero **siguen sin poder cerrarse con precisión de píxel** — ver detalle en cada sección y en
-§11; **§11.3 (paleta exacta por fila de la opción C) sigue abierta**, sin fuente nueva
-encontrada tras una segunda pasada de búsqueda — sigue siendo la única pieza de deuda que
-bloquea fijar constantes de color exactas en la spec.
+(condición de game over) resuelta y VERIFICADA**. **Cierre ampliado (2026-09-05, ver §11.9):**
+Lucas descargó la página completa de `Code.html` (bloqueada para el fetch automático de este
+hilo) y con ella se resolvieron, con cita exacta: **velocidad del cañón del jugador**,
+**mecanismo real de disparo de los invasores** (tabla determinista, no probabilidad),
+**bitmap exacto del escudo** (§11.1, ya no `SUPUESTO` — la FORMA; la posición X en pantalla
+sigue abierta), **bitmap exacto del sprite del OVNI** (§11.2, resuelto por completo), y
+**cadencia de aparición del OVNI**. **§11.3 (paleta exacta por fila) sigue abierta** — no
+está en `Code.html`, vive en el driver de video de MAME, no revisado en esta pasada.
 **Versión de referencia canónica:** Taito, 1978, mueble vertical (decisión ya tomada,
 `product-spec.md` §3.1). Variante a color: **elegida — opción C, conversión oficial a
 color RGB** (Taito "Space Invaders Color" / mismo generador de color que Space Invaders
@@ -454,6 +456,163 @@ el product-spec como norma general de la app.
    DIP switch reproducir por defecto, y quedan para la spec, no para este documento.
 
 ---
+
+## 11.9 Cierre ampliado (2026-09-05) — página completa de `Code.html`
+
+El fetch automático de este hilo no puede llegar a `computerarcheology.com` (robots.txt lo
+bloquea). Lucas guardó la página completa (`Code.html`, 7176 líneas de texto una vez
+extraído el HTML) y la puso a disposición del hilo orquestador, que la leyó completa y
+localizó lo siguiente — **todo con cita textual de rutina, dirección y comentario original**,
+no interpretación:
+
+1. **Velocidad del cañón del jugador — `VERIFICADO`, resuelve el `SUPUESTO` de `constants.ts`.**
+   Rutinas `MovePlayerRight`/`MovePlayerLeft` (`$0381`–`$0398`): `INC A` / `DEC A` sobre la
+   coordenada X — **1 píxel por invocación**, y la tarea "solo se llama en el ISR de
+   mitad de pantalla" (comentario en `$028E`), es decir, **una vez por tick a 60 Hz**. La nota
+   de investigación anterior ("se mueve tan rápido como el hardware permite, sin limitador
+   adicional") no era una ausencia de límite: el límite es exactamente 1 px/tick, el mismo
+   límite del que hablaba el comentario, solo que sin cuantificarlo. **1 px/tick (60 px/s).**
+
+2. **Mecanismo real de disparo de los invasores — `VERIFICADO`, reemplaza el `SUPUESTO` de
+   probabilidad que inventó el CLI.** No es una probabilidad por tick. Rutina
+   `HandleAlienShot` (`$0563`), comentario original: *"The alien fire rate is based on the
+   number of steps the other two shots on the screen have made. The smallest number-of-steps
+   is compared to the reload-rate... Setting rate this way keeps shots from walking on each
+   other."* Mecanismo exacto:
+   - Los 3 disparos de invasor (rolling/plunger/squiggly) comparten un **puntero determinista
+     a una tabla de columnas** (`aShotCFirLSB`) que avanza con cada nuevo disparo, no al azar.
+   - Antes de iniciar un disparo nuevo, se compara el conteo de pasos de los OTROS DOS
+     disparos activos contra una **tasa de recarga** (`aShotReloadRate`); si algún otro
+     disparo lleva menos pasos que esa tasa, no se dispara todavía.
+   - La tasa de recarga depende del MSB del puntaje del jugador activo — rutina
+     `AShotReloadRate` (`$170E`), tabla en `$1AA1`/`$1CB8`, **comentada explícitamente en la
+     fuente**: puntaje ≤ 0x0200 → recarga 0x30 (48 pasos); ≤ 0x1000 → 0x10 (16); ≤ 0x2000 →
+     0x0B (11); ≤ 0x3000 → 0x08 (8); por encima → 0x07 (7). Un "paso" es una invocación de
+     movimiento del disparo (mismo tick de la velocidad de disparo ya `VERIFICADO`, research
+     §4).
+   - Tras la muerte del jugador, el disparo de invasores queda deshabilitado **48 ticks**
+     (`$02A1`–`$02A3`, `LD A,$30` sobre `alienFireDelay`) antes de reactivarse.
+   - **Columna exacta que dispara en cada turno:** la tabla de columnas (`aShotCFirLSB`) SÍ
+     existe (referenciada en `$059C`), pero su contenido literal (el orden de columnas) no
+     se localizó en esta pasada — pendiente si se necesita reproducir el orden exacto y no
+     solo la cadencia.
+
+3. **Cadencia de aparición del OVNI — `VERIFICADO`, reemplaza el `SUPUESTO` de "cada 15 s".**
+   Rutina `TimeToSaucer` (`$0913`): contador `tillSaucerLSB` cuenta regresivo; al llegar a
+   cero arranca la secuencia del OVNI y el contador se reinicia a **`$0600` = 1536 ticks
+   (25.6 s a 60 Hz)**. Con una condición adicional no documentada antes: el contador **no
+   corre** hasta que el invasor de referencia baja de la posición Y inicial de la ronda 1
+   (`$78`) — el OVNI no puede aparecer antes de que la horda haya descendido al menos una
+   vez.
+
+4. **Bitmap exacto del escudo — `VERIFICADO`, resuelve la mitad de §3.4 (la FORMA; la
+   posición X en pantalla sigue sin resolver, ver punto 6).** Sección `Shield Image`,
+   dirección `$1D20`: patrón completo en ASCII art y en bytes hexadecimales, 16 columnas ×
+   22 filas exactas (silueta con la hendidura característica en la base). Reemplaza la
+   silueta que el CLI tuvo que inventar en `createShieldMask`.
+
+5. **Bitmap exacto del sprite del OVNI — `VERIFICADO`, cierra §11.2 por completo.** Sección
+   `Flying Saucer Sprite`, dirección `$1D64`: sprite de **8 píxeles de ancho × 24 filas**
+   (bytes hexadecimales y ASCII art completos), con la forma visible del platillo ocupando
+   las filas centrales (aprox. filas 4–19, 16 de alto) y padding transparente arriba/abajo.
+   El `SUPUESTO` de 16×24 de la spec §3.5 queda reemplazado por el bitmap real.
+
+6. **Lo que sigue sin resolver, incluso con la página completa:**
+   - **§11.1 — posición X en pantalla de los 4 escudos.** Se confirmó de nuevo la dirección
+     VRAM (`$2806`, paso `$02E0` = 736 bytes = 23 filas × 32 bytes/fila) — el nuevo dato es
+     que **32 bytes por fila es matemáticamente consistente** (256 px de ancho ÷ 8 bits =
+     32), lo que apunta a que la cifra de "28 bytes" que aparecía en `Hardware.html` era la
+     imprecisa. Pero convertir esa dirección VRAM a una coordenada X en la pantalla ROTADA
+     (que es la orientación que usa esta spec) requiere la convención exacta de mapeo
+     fila/columna del hardware de video, que vive en `Hardware.html`, no en `Code.html` —
+     no se leyó esa página completa en esta pasada. **Sigue `SUPUESTO`.**
+   - **§11.3 — paleta por fila.** No está en `Code.html` en absoluto — es responsabilidad del
+     driver de video de MAME (`8080bw.cpp`), no del ROM del juego. **Sigue `SUPUESTO`.**
+   - **Velocidad horizontal del OVNI** (px/tick) y **duración de las animaciones de
+     explosión** de invasor y de OVNI — no se localizaron con un número explícito en esta
+     pasada (sí se confirmó que la explosión del disparo del jugador usa un temporizador de
+     ~10-15 ticks con la primera pasada dibujando el sprite, `$03D7`, pero el comentario
+     fuente es ambiguo entre 10 y 15 — **`DERIVADO`, no `VERIFICADO`**, hasta una lectura más
+     cuidadosa). **Siguen `SUPUESTO`** en `constants.ts`, sin empeorar respecto a antes.
+
+**Fuente de este cierre:** archivo local `Games Code/Space Invaders Code.html`, guardado por
+Lucas el 2026-09-05 desde `computerarcheology.com/Arcade/SpaceInvaders/Code.html` (fuente
+(a), la misma ya declarada — el archivo es una copia íntegra de esa página, no una fuente
+nueva). No se commitea al repositorio (es una copia de un sitio de terceros, no producto de
+este proyecto); vive únicamente en la carpeta de trabajo de Lucas.
+
+## 11.10 Segunda pasada dirigida (2026-09-05) — huecos puntuales sobre el mismo `Code.html`
+
+Tras cerrar los puntos de §11.9, Lucas preguntó qué falta y si hace falta otra fuente. Antes
+de pedir nada nuevo, se re-grepeó el mismo archivo local ya en mano con términos más
+específicos (rutina del OVNI, tabla de columnas, temporizadores de explosión). Resultado:
+tres huecos más cerrados sin gastar una fuente nueva, y confirmación de que los dos que
+quedan (paleta, posición X de escudos) NO están en este archivo por ser de otro nivel
+(hardware de video, no ROM del juego).
+
+1. **Velocidad horizontal del OVNI — `VERIFICADO`, resuelve el `SUPUESTO` de §3.5.** Rutina
+   de reinicio del objeto OVNI (`$045D`–`$0475`): la paridad del contador de disparos
+   (`shotCountLSB AND 1`) decide la dirección — bit en 0 → `LD BC,$0229` (delta **+2**,
+   arranca en X=`$29`=41, se mueve a la derecha); bit en 1 → `LD BC,$FEE0` (delta **-2**,
+   arranca en X=`$E0`=224, se mueve a la izquierda). **2 px/tick (120 px/s), dirección
+   alterna cada vez que reaparece.** Reemplaza cualquier valor inventado en `constants.ts`.
+
+2. **Tabla literal de columnas de disparo — `VERIFICADO`, resuelve el punto 5 pendiente de
+   §11.9.2 y el `SUPUESTO` de la spec §5.1.5.** Sección `ColFireTable` (`$1CFA`/`$1D00`),
+   comentario original completo: *"This table decides which column a shot will fall from.
+   The column number is read from the table (1-11) and the pointer increases for the shot
+   type... the 'squiggly' shot uses index 06-14... the 'plunger' shot uses index 00-0F...
+   the 'rolling' shot targets the player [no usa la tabla]."* Bytes exactos:
+   ```
+   $1D00: 01 07 01 01 01 04 0B 01 06 03 01 01 0B 09 02 08
+   $1D10: 02 0B 04 07 0A
+   ```
+   (índices 0x00–0x14, 21 valores en total — "plunger" lee 0x00–0x0F, "squiggly" lee
+   0x06–0x14, ambos punteros cíclicos e independientes sobre la misma tabla). Hay además un
+   tramo en `$1D15` (`05 02 05 04 06 07 08 0A 06 0A 03`) que el propio comentario de la
+   fuente marca como **no usado en el juego final** ("appears to be part of the
+   column-firing table, but it is never used... perhaps intended for the rolling shot").
+   No incluirlo en la implementación.
+
+3. **Duración de la explosión de un invasor — `VERIFICADO`.** Rutina de impacto
+   (`$152A`, `LD A,$10`): el temporizador de "invasor explotando" arranca en **`$10` = 16
+   ticks** (0.267 s a 60 Hz) y cuenta regresivo hasta remover el invasor de juego
+   (`$1538`–`$1548`).
+
+4. **Duración de la secuencia de "OVNI impactado" — parcialmente `VERIFICADO`.** Rutina
+   `$06D6`–`$06F9`: el temporizador (`$2086`) arranca en **`$20` = 32 ticks**, con dos
+   puntos de control comentados en la fuente ("Starts at 20 ... first tick of show-hit
+   timer" en `$1F`=31, "a little later" en `$18`=24) que cambian el sprite mostrado
+   (explosión → puntaje) antes de remover el OVNI de juego. Se confirma el arranque en 32
+   ticks; el desglose exacto de qué se dibuja en cada checkpoint intermedio no se
+   verificó bit a bit — suficiente para fijar la duración total (32 ticks ≈ 0.53 s),
+   marcado `VERIFICADO` en la duración, `DERIVADO` en el desglose interno de checkpoints.
+
+5. **Duración de la explosión de un disparo de invasor (al chocar con jugador/escudo) —
+   sigue `DERIVADO`, sin cambios.** Rutina `ShotBlowingUp` (`$0644`): confirma que dibuja el
+   sprite de explosión en el primer tick donde el contador llega a `$03`, pero no se
+   localizó dónde se inicializa el contador (`$2078`) a su valor de arranque en esta
+   pasada — no se puede fijar la duración total todavía. Queda igual que en §11.9.6.
+
+6. **Paleta por fila (§11.3) y posición X de escudos (§11.1) — confirmado que NO viven en
+   `Code.html`, se necesita otra fuente.** Se intentó `raw.githubusercontent.com` sobre el
+   driver de MAME `src/mame/midw8080/8080bw.cpp` (el archivo correcto — la ruta antigua
+   `misc/8080bw.cpp` ya no existe, MAME reorganizó su árbol de código). El propio código
+   confirma la hipótesis: la variante color (`invadpt2`) se describe literalmente como
+   *"same as regular invaders, but with a color board added"* — la paleta la genera una
+   **tarjeta de hardware separada** ("color board"), no una tabla en el ROM ni en el driver
+   principal. La función real (`screen_update_invadpt2`, que también resolvería la rotación
+   VRAM→pantalla que necesita §11.1) está declarada pero implementada en otro archivo del
+   árbol de MAME que no se localizó en esta pasada — la búsqueda por fetch automático no
+   pudo enumerar el directorio (`github.com` normal está bloqueado por robots.txt; solo
+   `raw.githubusercontent.com` funciona archivo por archivo, y hay que acertar la ruta
+   exacta). **Ambos puntos son puramente cosméticos/posicionales, no afectan la mecánica de
+   juego** — no bloquean que el juego funcione en PC, solo su fidelidad visual exacta.
+
+**Fuente de los puntos 1-5:** mismo archivo local ya declarado en §11.9 (`Games Code/Space
+Invaders Code.html`), sin gastar una fuente nueva. **Fuente del intento del punto 6:**
+`raw.githubusercontent.com/mamedev/mame/master/src/mame/midw8080/8080bw.cpp` (pública, sin
+bloqueo de robots.txt, a diferencia del propio `github.com`).
 
 ## 12. Fuentes consultadas
 

@@ -1,8 +1,11 @@
 # Spec — `@arcade/game-space-invaders`
 
-**Versión:** 1.0
-**Fecha:** 2026-09-04
-**Estado:** aprobada por Lucas (2026-09-04)
+**Versión:** 1.2 (revisión 1.1 + cierra velocidad de OVNI en §3.5, tabla literal de
+columnas en §5.1.5, duración de explosión de invasor en §6/§8)
+**Fecha:** 2026-09-05
+**Estado:** aprobada por Lucas (2026-09-04); revisiones 1.1 y 1.2 son correcciones que
+hacen la spec MÁS fiel, no cambios de alcance — pendiente de que Lucas confirme que no
+hace falta re-aprobar desde cero
 **Documentos superiores:** `constitution.md`, `product-spec.md`, `docs/research/space-invaders.md`,
 `packages/contracts` (interfaces obligatorias)
 
@@ -11,12 +14,34 @@
 ## 0. Deuda de investigación declarada por adelantado
 
 El propietario decidió (2026-09-04) escribir esta spec y empezar a codificar **antes** de
-cerrar tres huecos de `docs/research/space-invaders.md` §11, priorizando tener el juego
-jugable en PC. Quedan explícitamente `SUPUESTO` en esta spec, no `VERIFICADO`:
+cerrar todos los huecos de `docs/research/space-invaders.md` §11, priorizando tener el
+juego jugable en PC. La primera implementación (M2.5) inventó, además de los tres huecos ya
+conocidos, otros que ni la spec ni la investigación cubrían (velocidad del jugador, cadencia
+de disparo de invasores, cadencia del OVNI, forma de escudo y OVNI, duraciones de
+explosión) — ver `docs/handoff/2.5-space-invaders.md`. El 2026-09-05, con la página completa
+de `Code.html` (research §11.9), se cerraron varios de esos huecos con cita exacta. Una
+segunda pasada dirigida sobre el mismo archivo (research §11.10) cerró tres más sin gastar
+fuente nueva: velocidad del OVNI, tabla literal de columnas de disparo, duración de
+explosión de invasor. Estado actual, solo dos huecos "grandes" (puramente visuales, no de
+mecánica) siguen `SUPUESTO`, más uno menor (duración de una animación):
 
-- **§10 — paleta exacta por fila** (research §11.3).
-- **§3.4 — coordenadas X de los 4 escudos** (research §11.1).
-- **§3.5 — dimensiones del sprite del OVNI** (research §11.2).
+- **§10 — paleta exacta por fila** (research §11.3, §11.10.6). Sigue abierta: se
+  confirmó que la genera una tarjeta de hardware de color separada ("color board"), no un
+  ROM ni el driver principal de MAME — se necesitaría localizar el archivo de video
+  específico del árbol de MAME, no intentado a fondo por ser puramente cosmético.
+- **§3.4 — coordenada X en pantalla de los 4 escudos** (research §11.1, §11.10.6). Sigue
+  abierta por el mismo motivo: requiere la función de rotación VRAM→pantalla del hardware
+  de video, no localizada. También puramente posicional/cosmético, no afecta la mecánica.
+
+Ambos puntos son visuales, no de mecánica de juego — no bloquean que el juego funcione ni
+se sienta fiel en PC. El tercer `SUPUESTO` menor es la duración del temporizador de
+explosión de un disparo de invasor al chocar (§6.4) — mecanismo confirmado, valor de
+arranque no localizado.
+
+Resueltos en esta revisión, con cita textual del desensamblado (research §11.9-§11.10):
+velocidad del jugador (§3.3), mecanismo y tabla literal de disparo de los invasores (§5.1),
+cadencia y velocidad del OVNI (§3.5), bitmap exacto del escudo (§3.4), bitmap exacto del
+OVNI (§3.5), duración de explosión de invasor y de OVNI (§6.4).
 
 Cada uno lleva su propio SUPUESTO explícito en la sección correspondiente, con el criterio
 usado para elegir un valor de trabajo. Ninguno bloquea empezar a implementar. **Todos
@@ -87,47 +112,58 @@ completo incluido el bug del OVNI, sonido reconstruido dirigido por ticks.
 - Al llegar al borde, la formación desciende **16 px** (un alto de celda) antes de invertir
   el sentido horizontal. `VERIFICADO`.
 
-### 3.3 Límite de movimiento del jugador
+### 3.3 Límite y velocidad de movimiento del jugador
 
 - El cañón se mueve solo en X, entre `X=48` y `X=217` en coordenadas de pantalla no
   rotada — es decir, en las coordenadas lógicas de este `GameModule` (224 de ancho).
   `VERIFICADO` (research §3).
+- **Velocidad: 1 px por tick (60 px/s). `VERIFICADO`** (research §11.9.1: rutinas
+  `MovePlayerRight`/`MovePlayerLeft` incrementan/decrementan la coordenada en 1, llamadas
+  una vez por tick desde el ISR de mitad de pantalla). Reemplaza el `PLAYER_SPEED` que el
+  CLI de M2.5 tuvo que inventar sin fuente — no había ningún valor en la v1.0 de esta spec.
 
-### 3.4 Escudos — posición ⚠️ SUPUESTO
+### 3.4 Escudos — forma `VERIFICADO`, posición X ⚠️ SUPUESTO
 
-- 4 escudos, cada uno de 16×22 px, con la silueta clásica (bloque con hendidura en la
-  base). `VERIFICADO` (research §3, §8).
-- **Coordenada X exacta de cada escudo: no disponible con precisión de píxel** (research
-  §11.1 — la fórmula de conversión de dirección VRAM a X no está publicada, y la fuente
-  secundaria disponible es internamente inconsistente).
-- **Valor de trabajo, `SUPUESTO`:** distribuir los 4 escudos **simétricamente** en el ancho
-  de 224 px, con separación uniforme y márgenes laterales iguales:
+- 4 escudos, cada uno de 16×22 px. **Bitmap exacto `VERIFICADO`** (research §11.9.4,
+  `Code.html` sección "Shield Image", dirección `$1D20`): patrón de bits real, no una
+  silueta inventada. `constants.ts` debe usar esta máscara literal (16 columnas × 22 filas)
+  como estado inicial de cada escudo, no la forma que `createShieldMask` construyó a mano en
+  M2.5.
+- **Coordenada X exacta de cada escudo en la pantalla: sigue sin resolver** (research
+  §11.9.6 — se confirmó la dirección VRAM `$2806` y el paso de `$02E0`/23 filas entre
+  escudos, y que 32 bytes por fila es la cifra consistente [256 px ÷ 8], pero falta la
+  convención de rotación fila↔columna del hardware de video para convertir esa dirección en
+  un píxel X de la pantalla que usa este `GameModule`).
+- **Valor de trabajo, `SUPUESTO`, sin cambios respecto a la v1.0:** distribuir los 4 escudos
+  simétricamente en el ancho de 224 px:
   ```
   margen = (224 − 4×16) / 5 = 32
   X[i] = margen × (i + 1) + 16 × i,  para i = 0..3
   X = [32, 80, 128, 176]
   ```
-  Y de la fila superior del escudo: 3/4 de la altura de pantalla desde arriba (`Y = 192`),
-  dejando espacio para 2 filas de invasores por debajo en las rondas más avanzadas
-  (research §7: la horda arranca "justo encima de los escudos" desde la ronda 7). Este
-  valor **no viene del ROM** — es una construcción geométrica razonable, explícitamente
-  marcada para no confundirla con un dato investigado. Se reemplaza en cuanto research
-  cierre §11.1, sin tocar el núcleo (el cambio queda contenido en `constants.ts` de este
-  paquete).
+  Y de la fila superior del escudo: `Y = 192`. Se reemplaza en cuanto se resuelva la
+  conversión VRAM→píxel, sin tocar el núcleo.
 
-### 3.5 OVNI — tamaño ⚠️ SUPUESTO
+### 3.5 OVNI — tamaño `VERIFICADO`, resuelto
 
 - Aparece en una fila Y fija cerca de arriba, rango de movimiento en X entre `$28` y `$E1`
   (40–225). `VERIFICADO` (research §3).
-- **Ancho/alto del sprite: no confirmado** (research §11.2 — se localizó la rutina de
-  dibujo genérica y la estructura de 10 bytes del objeto, ninguna de las dos publica el
-  tamaño del bitmap).
-- **Valor de trabajo, `SUPUESTO`:** 16×8 px — mismo alto de celda que un invasor (16 px de
-  alto de fila, pero el sprite real del OVNI es más bajo y ancho que alto en toda
-  referencia visual conocida del gabinete, de ahí 8 de alto) y ancho igual a una celda y
-  media (24 px) redondeado a 16 por simplicidad de sprite-sheet. Cualquiera de estos tres
-  números se ajusta con solo tocar `constants.ts` de este paquete en cuanto research cierre
-  §11.2 — no repercute en el núcleo ni en otro juego.
+- **Bitmap exacto `VERIFICADO`** (research §11.9.5, `Code.html` sección "Flying Saucer
+  Sprite", dirección `$1D64`): sprite de **8 px de ancho × 24 filas**, con la forma visible
+  del platillo ocupando las filas centrales (≈ filas 4–19, 16 de alto) y padding
+  transparente arriba/abajo — usar el bitmap completo de 8×24, no solo el recorte visible,
+  para que la animación de explosión (`SpriteSaucerExp`, misma dimensión, dirección
+  `$1D7C`, también capturada) calce con el mismo marco. Reemplaza el `SUPUESTO` 16×8 de la
+  v1.0.
+- **Cadencia de aparición: `VERIFICADO`** (research §11.9.3): cada **1536 ticks** (25.6 s a
+  60 Hz) desde que el invasor de referencia desciende por debajo de la Y inicial de la
+  ronda 1 — el OVNI no puede aparecer antes de que la horda haya bajado al menos una vez.
+  Antes de esta revisión no había ningún valor en la spec para esto; el CLI de M2.5 lo tuvo
+  que inventar (`UFO_SPAWN_TICKS`).
+- **Velocidad horizontal: `VERIFICADO`** (research §11.10.1): **2 px/tick (120 px/s)**.
+  La dirección alterna cada reaparición según la paridad de un contador de disparos —
+  arranca en X=41 moviéndose a la derecha, o en X=224 moviéndose a la izquierda. Reemplaza
+  cualquier valor `SUPUESTO` que el CLI de M2.5 haya inventado.
 
 ### 3.6 Regla de fin de vida instantáneo
 
@@ -179,6 +215,46 @@ deliberadamente desincronizado (§9).
   quedan 8 invasores vivos o menos, sube a 5 px por tick (100 px/s).** `VERIFICADO`
   (research §4).
 
+### 5.1 Cuándo y cuál invasor dispara — obligatorio implementarlo así
+
+**No es una probabilidad por tick.** La v1.0 de esta spec no cubría esto y el CLI de M2.5
+inventó una probabilidad con `Rng` — reemplazar por el mecanismo real, `VERIFICADO`
+(research §11.9.2):
+
+1. Los tres disparos de invasor (rolling, plunger, squiggly) comparten un **puntero
+   determinista a una tabla de columnas**: cada vez que uno de los tres necesita un
+   disparo nuevo, toma la siguiente columna de la tabla (no al azar) y busca el invasor
+   vivo más bajo de esa columna. Si esa columna no tiene invasores vivos, ese turno no
+   dispara.
+2. Antes de iniciar un disparo nuevo, se compara cuántos ticks llevan corriendo LOS OTROS
+   DOS disparos activos contra una **tasa de recarga** — si alguno de los otros dos lleva
+   menos ticks que esa tasa, no se dispara todavía (evita que los tres disparos avancen
+   pegados unos a otros).
+3. La tasa de recarga depende del puntaje del jugador activo (tabla exacta):
+
+   | Puntaje ≤ | Tasa de recarga (ticks) |
+   |---|---|
+   | 512 (`0x0200`) | 48 |
+   | 4096 (`0x1000`) | 16 |
+   | 8192 (`0x2000`) | 11 |
+   | 12288 (`0x3000`) | 8 |
+   | mayor | 7 |
+
+4. Tras morir el jugador, el disparo de invasores queda deshabilitado **48 ticks** antes de
+   reactivarse (ya cubierto indirectamente por la mecánica de reaparición, pero era un
+   número que la v1.0 no daba).
+5. **Tabla literal de columnas: `VERIFICADO`** (research §11.10.2, `Code.html`
+   `ColFireTable`, dirección `$1D00`). Bytes exactos (índice → columna 1-11):
+   ```
+   índice: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14
+   valor:  01 07 01 01 01 04 0B 01 06 03 01 01 0B 09 02 08 02 0B 04 07 0A
+   ```
+   El disparo "plunger" usa un puntero cíclico e independiente sobre los índices
+   0x00–0x0F; el "squiggly" usa un puntero cíclico e independiente sobre 0x06–0x14 (se
+   superponen en índices 0x06–0x0F, cada uno con su propio puntero). El "rolling" no usa
+   esta tabla — apunta directo a la columna del jugador. Reemplaza el orden inventado de la
+   v1.1.
+
 ---
 
 ## 6. Puntaje
@@ -210,6 +286,18 @@ deliberadamente desincronizado (§9).
   hardware original (research §7, §6) — Lucas ya decidió el default (`docs/estado.md` §3);
   se codifican como constantes fijas, no como opción expuesta en la UI (fuera de alcance:
   no hay pantalla de configuración).
+
+### 6.4 Duración de animaciones de explosión
+
+- **Invasor destruido: `VERIFICADO`** (research §11.10.3). El sprite de explosión se
+  muestra **16 ticks (0.267 s)** antes de remover el invasor definitivamente.
+- **OVNI destruido: `VERIFICADO` en duración total, `DERIVADO` en el desglose interno**
+  (research §11.10.4). La secuencia completa (explosión → cambio a puntaje → remoción) dura
+  **32 ticks (0.53 s)** desde el impacto.
+- **Disparo de invasor al chocar con jugador/escudo: sigue `SUPUESTO`, sin resolver**
+  (research §11.10.5). Se confirmó el mecanismo (dibuja el sprite de explosión en un tick
+  concreto del temporizador) pero no el valor de arranque del temporizador. Usar un valor
+  de trabajo corto (4-6 ticks) hasta que se localice el dato exacto — no bloquea implementar.
 
 ---
 
@@ -344,8 +432,9 @@ panel: {
 Cada constante numérica en `constants.ts` debe citar su sección de este documento (que a su
 vez cita `research/space-invaders.md`) y su marca de confianza — `VERIFICADO`, `DERIVADO` o
 `SUPUESTO` — igual que exige Constitución Art. 1.4. No se aceptan números "mágicos" sin esa
-trazabilidad, incluidos los tres `SUPUESTO` de esta spec (§3.4, §3.5, §10): están
-documentados, no son deuda oculta.
+trazabilidad, incluidos los `SUPUESTO` de esta spec (§3.4 posición X de escudos, §10
+paleta, §6.4 duración de explosión de disparo de invasor): están documentados, no son
+deuda oculta.
 
 ---
 
