@@ -507,9 +507,41 @@ no interpretación:
 
 4. **Bitmap exacto del escudo — `VERIFICADO`, resuelve la mitad de §3.4 (la FORMA; la
    posición X en pantalla sigue sin resolver, ver punto 6).** Sección `Shield Image`,
-   dirección `$1D20`: patrón completo en ASCII art y en bytes hexadecimales, 16 columnas ×
-   22 filas exactas (silueta con la hendidura característica en la base). Reemplaza la
-   silueta que el CLI tuvo que inventar en `createShieldMask`.
+   dirección `$1D20`, comentario original: *"Shield image pattern. 2 x 22 = 44 bytes."*
+   16 columnas × 22 filas, 2 bytes por fila (16 bits, MSB primero, bit=1 es píxel sólido).
+   ASCII art literal de la fuente:
+   ```
+   ************....
+   *************...
+   **************..
+   ***************.
+   ****************
+   ..**************
+   ...*************
+   ....************
+   ....************
+   ....************
+   ....************
+   ....************
+   ....************
+   ....************
+   ...*************
+   ..**************
+   ****************
+   ****************
+   ***************.
+   **************..
+   *************...
+   ************....
+   ```
+   Bytes hexadecimales literales, fila por fila (22 valores de 16 bits / 44 bytes, en el
+   orden del código fuente):
+   ```
+   $1D20: FF 0F  FF 1F  FF 3F  FF 7F  FF FF  FC FF  F8 FF  F0 FF  F0 FF  F0 FF  F0 FF
+   $1D36: F0 FF  F0 FF  F0 FF  F8 FF  FC FF  FF FF  FF FF  FF 7F  FF 3F  FF 1F  FF 0F
+   ```
+   Reemplaza la silueta que el CLI tuvo que inventar en `createShieldMask` — usar este
+   patrón literal, no una aproximación.
 
 5. **Bitmap exacto del sprite del OVNI — `VERIFICADO`, cierra §11.2 por completo.** Sección
    `Flying Saucer Sprite`, dirección `$1D64`: sprite de **8 píxeles de ancho × 24 filas**
@@ -613,6 +645,142 @@ quedan (paleta, posición X de escudos) NO están en este archivo por ser de otr
 Invaders Code.html`), sin gastar una fuente nueva. **Fuente del intento del punto 6:**
 `raw.githubusercontent.com/mamedev/mame/master/src/mame/midw8080/8080bw.cpp` (pública, sin
 bloqueo de robots.txt, a diferencia del propio `github.com`).
+
+## 11.11 Sprites de pixel art real — nave y los 3 tipos de invasor (2026-09-05)
+
+Lucas jugó la implementación resultante de §11.9/§11.10 y reportó que se ve "todo mal":
+invasores, nave y escudo aparecen como formas geométricas simples, no como el pixel-art
+reconocible del original. Diagnóstico (ver `docs/estado.md` para el registro completo del
+error): la spec nunca exigió el bitmap real de nave/invasores como criterio de aceptación —
+solo se resolvieron escudo y OVNI en pasadas anteriores. `render.ts` usa `fillRect` de color
+sólido para nave/invasores/OVNI porque no existe un atlas de sprites — la infraestructura
+para dibujar sprites reales (`DrawSurface.drawSprite`, `packages/core/renderer/canvas-surface.ts`,
+`SpriteAtlas`) ya existe en el código, simplemente nunca se le dio contenido real.
+
+Mismo archivo local ya en mano (`Games Code/Space Invaders Code.html`), sin fuente nueva.
+Convención de bits confirmada y reutilizada de §11.9.4 (validada cruzando con `SquiglyShot`,
+`$1CD0`: byte `$44` = `..*...*.` — bit 0 es el píxel más a la IZQUIERDA de cada byte, LSB
+primero, un byte = 8 columnas):
+
+**Nave del jugador — `VERIFICADO`.** Sección `Player Sprite`, dirección `$1C60`. 8 px de
+ancho × 16 filas, una sola forma (no anima al moverse):
+```
+........
+........
+****....
+*****...
+*****...
+*****...
+*****...
+*******.
+********
+*******.
+*****...
+*****...
+*****...
+*****...
+****....
+........
+```
+Bytes: `$1C60: 00 00 0F 1F 1F 1F 1F 7F FF 7F 1F 1F 1F 1F 0F 00`
+
+**Explosión de la nave — `VERIFICADO`, 2 cuadros.** Sección `PlrBlowupSprites`, direcciones
+`$1C70` y `$1C80` (8×16 cada uno, patrón de "desintegración" en dos pasos — no hay ASCII
+limpio reproducible aquí de forma compacta, usar los bytes directos):
+```
+$1C70: 00 04 01 13 03 07 B3 0F 2F 03 2F 49 04 03 00 01
+$1C80: 40 08 05 A3 0A 03 5B 0F 27 27 0B 4B 40 84 11 48
+```
+
+**Invasores — `VERIFICADO`, 3 tipos × 2 cuadros de animación cada uno.** Sección
+`Alien Images`, direcciones `$1C00` (cuadro 0, los 3 tipos consecutivos) y `$1C30` (cuadro
+1). 8 px de ancho × 16 filas cada sprite. Direcciones exactas confirmadas por la tabla de
+puntaje (`$1DBE`, "Tables used to draw SCORE ADVANCE TABLE information"): `Alien A, sprite 0`
+→ `$1C00`; `Alien B, sprite 1` → `$1C40`; `Alien C, sprite 0` → `$1C20`.
+
+```
+Tipo A, cuadro 0 ($1C00):        Tipo B, cuadro 0 ($1C10):        Tipo C, cuadro 0 ($1C20):
+........                          ........                          ........
+........                          ........                          ........
+*..***..                          ........                          ........
+*..****.                          ...****.                          ........
+.*.****.                          *.***...                          *..**...
+.***.**.                          .*****.*                          .*.***..
+..**.***                          ..**.**.                          *.**.**.
+.*.*****                          ..****..                          .*.*****
+.*.*****                          ..****..                          .*.*****
+..**.***                          ..****..                          *.**.**.
+.***.**.                          ..**.**.                          .*.***..
+.*.****.                          .*****.*                          *..**...
+*..****.                          *.***...                          ........
+*..***..                          ...****.                          ........
+........                          ........                          ........
+........                          ........                          ........
+
+Bytes tipo A ($1C00-$1C0F): 00 00 39 79 7A 6E EC FA FA EC 6E 7A 79 39 00 00
+Bytes tipo B ($1C10-$1C1F): 00 00 00 78 1D BE 6C 3C 3C 3C 6C BE 1D 78 00 00
+Bytes tipo C ($1C20-$1C2F): 00 00 00 00 19 3A 6D FA FA 6D 3A 19 00 00 00 00
+
+Tipo A, cuadro 1 ($1C30):        Tipo B, cuadro 1 ($1C40):        Tipo C, cuadro 1 ($1C50):
+........                          ........                          ........
+........                          ........                          ........
+...***..                          ........                          ........
+.*.****.                          .***....                          ........
+*******.                          ...**...                          .*.**...
+*.**.**.                          .*****.*                          *.****..
+..**.***                          *.**.**.                          ...*.**.
+.*.*****                          *.****..                          ..******
+.*.*****                          ..****..                          ..******
+..**.***                          *.****..                          ...*.**.
+*.**.**.                          *.**.**.                          *.****..
+*******.                          .*****.*                          .*.**...
+.*.****.                          ...**...                          ........
+...***..                          .***....                          ........
+........                          ........                          ........
+........                          ........                          ........
+
+Bytes tipo A ($1C30-$1C3F): 00 00 38 7A 7F 6D EC FA FA EC 6D 7F 7A 38 00 00
+Bytes tipo B ($1C40-$1C4F): 00 00 00 0E 18 BE 6D 3D 3C 3D 6D BE 18 0E 00 00
+Bytes tipo C ($1C50-$1C5F): 00 00 00 00 1A 3D 68 FC FC 68 3D 1A 00 00 00 00
+```
+
+**Mapeo tipo→fila de formación: `SUPUESTO`, sin confirmar en esta pasada.** El código usa
+letras A/B/C internamente y no localicé en este grep dónde se asigna cada letra a una fila
+de la formación (§3.1: fila 1 = "squid" 30 pts, filas 2-3 = "crab" 20 pts, filas 4-5 =
+"octopus" 10 pts). Trabajo de implementación, no de investigación: grepear
+`0124: LD HL,$1C00 ; Position 0 alien sprites` (línea 744 del archivo de texto) y la rutina
+que lo llama para confirmar el mapeo exacto antes de wireing — un solo grep más sobre el
+mismo archivo local, sin gastar fuente nueva.
+
+**Explosión de invasor — `VERIFICADO`.** Sección `Alien Exploding Sprite`, `$1CC0` (8×16):
+```
+........
+...*....
+*..*..*.
+.*...*..
+..*.*...
+*......*
+.*....*.
+........
+.*....*.
+*......*
+..*.*...
+.*...*..
+*..*..*.
+...*....
+........
+........
+```
+Bytes: `$1CC0: 00 08 49 22 14 81 42 00 42 81 14 22 49 08 00 00`
+
+**Infraestructura de dibujo: ya existe, no hace falta construirla de cero.**
+`packages/core/src/renderer/canvas-surface.ts` ya implementa `drawSprite()` sobre un
+`SpriteAtlas` (drawImage con recorte de frame, flip horizontal, tintado). Lo que falta es
+el propio atlas — la imagen spritesheet con estos bitmaps renderizados a píxeles reales, y
+su manifiesto (`SpriteId` → rect en la imagen) — y cambiar `render.ts` de
+`fillRect`/`drawShield` a `drawSprite` para nave, invasores y OVNI. El escudo puede quedarse
+con el enfoque de spans (es destructible píxel a píxel, no encaja bien en un atlas de
+sprites fijos).
 
 ## 12. Fuentes consultadas
 

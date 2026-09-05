@@ -100,9 +100,22 @@ de seguir investigando** — prioridad es ver el juego andando en PC.
 `constants.ts`/`render.ts` del paquete del juego para que cerrarlos después no toque el
 núcleo.
 
-**En curso: 2.5 — implementación de Space Invaders**, CLI en
-`packages/games/space-invaders`, contra la spec cerrada. Encargo dado 2026-09-04. Falta
-integrarlo en `catalog` para que sea jugable desde el mueble (ver encargo).
+**En curso: 2.5/2.6/2.7 — implementación de Space Invaders**, CLI en
+`packages/games/space-invaders`, contra la spec cerrada (ahora v1.2, ver
+`docs/specs/games/space-invaders.md`). 2.6 reemplazó las constantes inventadas por las
+`VERIFICADO` de research §11.9-§11.10. Lucas probó el resultado (2026-09-05) y reportó "se
+ve todo mal" — invasores, nave y escudo no se parecen al original.
+
+**Error registrado (orquestador, 2026-09-05):** la spec nunca exigió el bitmap real de
+pixel art de nave/invasores como criterio de aceptación. `render.ts` dibuja nave/invasores/
+OVNI con `fillRect` de color sólido porque no existe un atlas de sprites — la
+infraestructura para dibujar sprites reales SÍ existe (`DrawSurface.drawSprite`,
+`packages/core/renderer/canvas-surface.ts`), solo nunca se le dio contenido. Responsabilidad
+del orquestador como autor de la spec, no del CLI (que documentó el placeholder
+honestamente, Art. 2.7, en vez de inventar pixel art falso). Bitmaps exactos de nave (1),
+invasores (3 tipos × 2 cuadros) y explosión de invasor ya extraídos del mismo `Code.html`
+local, sin fuente nueva — ver research §11.11. Falta construir el atlas de sprites real y
+conectar `drawSprite` en `render.ts` — encargo 2.7 en curso.
 
 Pendientes no bloqueantes, sin prisa: marquesina e icono definitivos
 (`handoff/1.10-infra.md`); aviso de "hay versión nueva" para el service worker
