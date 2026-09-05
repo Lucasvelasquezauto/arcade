@@ -115,7 +115,9 @@ del orquestador como autor de la spec, no del CLI (que documentó el placeholder
 honestamente, Art. 2.7, en vez de inventar pixel art falso). Bitmaps exactos de nave (1),
 invasores (3 tipos × 2 cuadros) y explosión de invasor ya extraídos del mismo `Code.html`
 local, sin fuente nueva — ver research §11.11. Falta construir el atlas de sprites real y
-conectar `drawSprite` en `render.ts` — encargo 2.7 en curso.
+conectar `drawSprite` en `render.ts` — hecho en encargo 2.7 (docs/handoff/2.7-space-invaders-sprites.md). Encontro un bloqueo real y correcto: `apps/arcade/src/game-session.ts` construye `CanvasDrawSurface` sin `SpriteAtlas` -> `drawSprite` lanza en el primer frame, pantalla en blanco.
+
+**Decision registrada (orquestador, 2026-09-05):** cablear el atlas como caso especial para Space Invaders en `apps/arcade` (encargo 2.8), no cambiar `GameModule` en `@arcade/contracts` todavia -- eso es lo correcto a mediano plazo pero es cambio de contrato (Art. 2, spec propia) y frena mas de lo que resuelve ahora. Deuda tecnica anotada para cuando haya un segundo juego con sprites que la justifique.
 
 Pendientes no bloqueantes, sin prisa: marquesina e icono definitivos
 (`handoff/1.10-infra.md`); aviso de "hay versión nueva" para el service worker
